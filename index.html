@@ -2,55 +2,239 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mirea - Diario di famiglia</title>
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #fff5f8;
-      color: #49313c;
-      text-align: center;
-    }
-    header {
-      background: #f5b8cf;
-      padding: 35px 15px;
-    }
-    h1 { margin: 0; }
-    main { padding: 25px 15px; }
-    .card {
-      background: white;
-      border-radius: 16px;
-      padding: 22px;
-      margin: 15px auto;
-      max-width: 420px;
-      box-shadow: 0 3px 12px #0001;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mirea - Diario di famiglia</title>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #fff5f8;
+  color: #49313c;
+}
+header {
+  background: #f5b8cf;
+  text-align: center;
+  padding: 28px 15px;
+}
+h1 { margin: 0; }
+header p { margin-bottom: 0; }
+main {
+  max-width: 550px;
+  margin: auto;
+  padding: 16px;
+}
+.card {
+  background: white;
+  padding: 20px;
+  border-radius: 16px;
+  margin: 15px 0;
+  box-shadow: 0 3px 12px #0001;
+}
+h2 { font-size: 21px; }
+button {
+  background: #df709d;
+  color: white;
+  border: none;
+  padding: 13px;
+  border-radius: 10px;
+  margin: 5px 3px;
+  cursor: pointer;
+  font-size: 15px;
+}
+button:active { opacity: .7; }
+input, select {
+  width: 100%;
+  padding: 12px;
+  margin: 8px 0;
+  border: 1px solid #e7c3d2;
+  border-radius: 9px;
+  font-size: 16px;
+}
+.item {
+  border-bottom: 1px solid #f2dce5;
+  padding: 12px 0;
+}
+.item small { color: #806b75; }
+.delete {
+  background: #eee;
+  color: #a33;
+  padding: 6px 10px;
+  float: right;
+}
+.stats {
+  display: flex;
+  justify-content: space-around;
+  text-align: center;
+}
+.stats strong {
+  display: block;
+  font-size: 26px;
+  color: #c84d80;
+}
+</style>
 </head>
 <body>
-  <header>
-    <h1>💕 Mirea</h1>
-    <p>Il nostro diario di famiglia</p>
-  </header>
-  <main>
-    <div class="card">
-      <h2>👶 Il diario di Mirea</h2>
-      <p>Ogni giorno una nuova scoperta.</p>
+
+<header>
+  <h1>💕 Mirea</h1>
+  <p>Il nostro diario di famiglia</p>
+</header>
+
+<main>
+  <section class="card">
+    <h2>👶 Il diario di Mirea</h2>
+    <p>Ogni giorno una nuova scoperta.</p>
+  </section>
+
+  <section class="card">
+    <h2>📊 Riepilogo di oggi</h2>
+    <div class="stats">
+      <div><strong id="poppate">0</strong>Poppate</div>
+      <div><strong id="pannolini">0</strong>Pannolini</div>
     </div>
-    <div class="card">
-      <h2>🍼 Poppate e pannolini</h2>
-      <p>Registriamo i momenti importanti.</p>
-    </div>
-    <div class="card">
-      <h2>🎁 Visite e regali</h2>
-      <p>Un ricordo di chi viene a trovarci.</p>
-    </div>
-    <div class="card">
-      <h2>📅 Appuntamenti</h2>
-      <p>Organizziamo gli impegni di famiglia.</p>
-    </div>
-  </main>
+  </section>
+
+  <section class="card">
+    <h2>🍼 Registra una poppata</h2>
+    <select id="tipoPoppata">
+      <option value="Seno sinistro">Seno sinistro</option>
+      <option value="Seno destro">Seno destro</option>
+      <option value="Entrambi i seni">Entrambi i seni</option>
+      <option value="Biberon">Biberon</option>
+    </select>
+    <input id="durata" type="number" min="0"
+      placeholder="Durata in minuti (facoltativa)">
+    <button onclick="aggiungiPoppata()">
+      + Registra poppata
+    </button>
+  </section>
+
+  <section class="card">
+    <h2>🧷 Registra un pannolino</h2>
+    <select id="tipoPannolino">
+      <option value="Pipì">Solo pipì</option>
+      <option value="Cacca">Solo cacca</option>
+      <option value="Pipì e cacca">Pipì e cacca</option>
+      <option value="Asciutto">Asciutto</option>
+    </select>
+    <button onclick="aggiungiPannolino()">
+      + Registra cambio
+    </button>
+  </section>
+
+  <section class="card">
+    <h2>📖 Storico degli eventi</h2>
+    <div id="storico"></div>
+  </section>
+
+  <section class="card">
+    <h2>🎁 Visite e regali</h2>
+    <p>Presto registreremo anche le visite e i regali.</p>
+  </section>
+
+  <section class="card">
+    <h2>📅 Appuntamenti</h2>
+    <p>Organizzeremo gli impegni di famiglia.</p>
+  </section>
+</main>
+
+<script>
+const CHIAVE = "mirea_diario_eventi";
+let eventi = [];
+
+try {
+  const salvati = JSON.parse(localStorage.getItem(CHIAVE));
+  eventi = Array.isArray(salvati) ? salvati : [];
+} catch {
+  eventi = [];
+}
+
+function salva() {
+  localStorage.setItem(CHIAVE, JSON.stringify(eventi));
+  aggiorna();
+}
+
+function aggiungiPoppata() {
+  const tipo = document.getElementById("tipoPoppata").value;
+  const durata = document.getElementById("durata").value;
+  const descrizione = tipo +
+    (durata ? " - " + durata + " minuti" : "");
+
+  eventi.push({
+    id: crypto.randomUUID(),
+    categoria: "poppata",
+    descrizione,
+    data: new Date().toISOString()
+  });
+
+  document.getElementById("durata").value = "";
+  salva();
+}
+
+function aggiungiPannolino() {
+  const tipo = document.getElementById("tipoPannolino").value;
+
+  eventi.push({
+    id: crypto.randomUUID(),
+    categoria: "pannolino",
+    descrizione: tipo,
+    data: new Date().toISOString()
+  });
+
+  salva();
+}
+
+function elimina(id) {
+  if (!confirm("Eliminare questo evento?")) return;
+  eventi = eventi.filter(e => e.id !== id);
+  salva();
+}
+
+function aggiorna() {
+  const oggi = new Date().toDateString();
+  const eventiOggi = eventi.filter(e =>
+    new Date(e.data).toDateString() === oggi
+  );
+
+  document.getElementById("poppate").textContent =
+    eventiOggi.filter(e => e.categoria === "poppata").length;
+
+  document.getElementById("pannolini").textContent =
+    eventiOggi.filter(e => e.categoria === "pannolino").length;
+
+  const storico = document.getElementById("storico");
+  storico.replaceChildren();
+
+  if (!eventi.length) {
+    storico.textContent = "Nessun evento registrato.";
+    return;
+  }
+
+  [...eventi].reverse().forEach(e => {
+    const riga = document.createElement("div");
+    riga.className = "item";
+
+    const pulsante = document.createElement("button");
+    pulsante.className = "delete";
+    pulsante.textContent = "Elimina";
+    pulsante.onclick = () => elimina(e.id);
+
+    const titolo = document.createElement("div");
+    titolo.textContent =
+      (e.categoria === "poppata" ? "🍼 " : "🧷 ") +
+      e.descrizione;
+
+    const data = document.createElement("small");
+    data.textContent = new Date(e.data).toLocaleString("it-IT");
+
+    riga.append(pulsante, titolo, data);
+    storico.appendChild(riga);
+  });
+}
+
+aggiorna();
+</script>
 </body>
 </html>
