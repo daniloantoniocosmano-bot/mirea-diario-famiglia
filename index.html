@@ -77,7 +77,33 @@ input, select {
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
+   
+<div id="schermata-login">
+  <h2>💗 Il diario di Mirea</h2>
+  <p>Accesso riservato a mamma e papà</p>
 
+  <input
+    type="email"
+    id="login-email"
+    placeholder="Email"
+    autocomplete="email"
+  >
+
+  <input
+    type="password"
+    id="login-password"
+    placeholder="Password"
+    autocomplete="current-password"
+  >
+
+  <button type="button" onclick="accedi()">
+    Accedi
+  </button>
+
+  <p id="login-errore"></p>
+</div> 
+
+<div id="contenuto-diario" hidden>
 <header>
   <h1>💕 Mirea</h1>
   <p>Il nostro diario di famiglia</p>
@@ -140,9 +166,62 @@ input, select {
     <p>Organizzeremo gli impegni di famiglia.</p>
   </section>
 </main>
+</div>
 
 <script>
+const SUPABASE_URL = "https://srnwpczxvdkqebdlnbcs.supabase.co";
+const SUPABASE_KEY = "sb_publishable_DcDShQw__D1hncKTbsaiSg_xKfSJogV";
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const CHIAVE = "mirea_diario_eventi";
+
+async function accedi() {
+  const email = document.getElementById("login-email").value.trim();
+  const password = document.getElementById("login-password").value;
+  const errore = document.getElementById("login-errore");
+
+  errore.textContent = "";
+
+  const { data, error } = await db.auth.signInWithPassword({
+    email,
+    password
+  });
+
+  if (error) {
+    errore.textContent = "Accesso non riuscito. Controlla email e password.";
+    return;
+  }
+
+  const autorizzati = [
+    "cc70a1aa-84c0-49f8-99d3-56c77f6a9c08",
+    "d24e8c79-2ac8-4b71-94e6-4f31ee9aca41"
+  ];
+
+  if (!data.user || !autorizzati.includes(data.user.id)) {
+    await db.auth.signOut();
+    errore.textContent = "Account non autorizzato.";
+    return;
+  }
+
+  document.getElementById("schermata-login").hidden = true;
+  document.getElementById("contenuto-diario").hidden = false;
+await caricaEventi();
+}
+
+async function caricaEventi() {
+  const { data, error } = await db
+    .from("eventi")
+    .select("id, categoria, descrizione, data")
+    .order("data", { ascending: true });
+
+  if (error) {
+    alert("Errore nel caricamento degli eventi.");
+    return;
+  }
+
+  eventi = data || [];
+  aggiorna();
+}
+
 let eventi = [];
 
 try {
@@ -152,12 +231,21 @@ try {
   eventi = [];
 }
 
-function salva() {
+async function salva() {
+  const { error } = await db
+    .from("eventi")
+    .upsert(eventi);
+
+  if (error) {
+    alert("Errore nel salvataggio online: " + error.message);
+    return;
+  }
+
   localStorage.setItem(CHIAVE, JSON.stringify(eventi));
   aggiorna();
 }
 
-function aggiungiPoppata() {
+async function aggiungiPoppata() {
   const tipo = document.getElementById("tipoPoppata").value;
   const durata = document.getElementById("durata").value;
   const descrizione = tipo +
@@ -171,10 +259,10 @@ function aggiungiPoppata() {
   });
 
   document.getElementById("durata").value = "";
-  salva();
+  await salva();
 }
 
-function aggiungiPannolino() {
+async function aggiungiPannolino() {
   const tipo = document.getElementById("tipoPannolino").value;
 
   eventi.push({
@@ -184,13 +272,25 @@ function aggiungiPannolino() {
     data: new Date().toISOString()
   });
 
-  salva();
+  await salva();
 }
 
-function elimina(id) {
+async function elimina(id) {
   if (!confirm("Eliminare questo evento?")) return;
+
+  const { error } = await db
+    .from("eventi")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    alert("Errore nell'eliminazione: " + error.message);
+    return;
+  }
+
   eventi = eventi.filter(e => e.id !== id);
-  salva();
+  localStorage.setItem(CHIAVE, JSON.stringify(eventi));
+  aggiorna();
 }
 
 function aggiorna() {
