@@ -61,6 +61,14 @@ textarea { width:100%; padding:12px; margin:8px 0; border:1px solid #e7c3d2; bor
 .medicine-dose small { display:block; color:#806b75; margin:5px 0; }
 .medicine-toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .medicine-toolbar input { flex:1; min-width:160px; }
+
+/* Diario fotografico */
+.ricordo-foto { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin-top:12px; }
+.ricordo-foto figure { margin:0; }
+.ricordo-foto img { width:100%; aspect-ratio:4/3; object-fit:cover; border-radius:10px; background:#fff0f6; }
+.ricordo-foto button { font-size:12px; padding:7px; }
+.ricordo-racconto { white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.55; }
+.ricordo-item { background:#fff9fb; padding:14px; border-radius:12px; margin-bottom:14px; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -283,6 +291,40 @@ textarea { width:100%; padding:12px; margin:8px 0; border:1px solid #e7c3d2; bor
         <div id="appuntamenti-annullati"></div>
       </div>
       <button type="button" class="secondary" id="aggiorna-appuntamenti">↻ Aggiorna appuntamenti</button>
+    </section>
+
+    <section class="card">
+      <h2>📖 La mia storia</h2>
+      <p>Ricordi e fotografie della crescita di Mirea, raccontati con la sua voce.</p>
+      <button type="button" id="apri-diario-storia" aria-expanded="false">Apri il diario dei ricordi</button>
+    </section>
+    <section class="card" id="pannello-diario-storia" hidden>
+      <h2 id="titolo-form-ricordo">💕 Aggiungi un ricordo</h2>
+      <form id="form-ricordo">
+        <label class="field-label" for="ricordo-data">Data *</label>
+        <input type="date" id="ricordo-data" required>
+        <label class="field-label" for="ricordo-ora">Ora (facoltativa)</label>
+        <input type="time" id="ricordo-ora">
+        <label class="field-label" for="ricordo-titolo">Titolo *</label>
+        <input id="ricordo-titolo" maxlength="200" placeholder="Es. Sono nata!" required>
+        <label class="field-label" for="ricordo-categoria">Categoria</label>
+        <select id="ricordo-categoria">
+          <option>Ricordo speciale</option><option>Prima volta</option>
+          <option>Primi traguardi</option><option>Famiglia</option>
+          <option>Momenti divertenti</option><option>Altri ricordi</option>
+        </select>
+        <label class="field-label" for="ricordo-racconto">Il mio racconto *</label>
+        <textarea id="ricordo-racconto" rows="5" required placeholder="Oggi ho... Racconta questo momento con la voce di Mirea."></textarea>
+        <label class="field-label" for="ricordo-nuove-foto">Aggiungi fotografie (facoltative)</label>
+        <input type="file" id="ricordo-nuove-foto" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" multiple>
+        <p class="small-note">Puoi scegliere più fotografie, fino a 10 MB ciascuna. Formati JPEG, PNG, WebP, HEIC/HEIF; alcuni browser non visualizzano direttamente HEIC.</p>
+        <div class="actions"><button type="submit" id="salva-ricordo">Salva ricordo</button>
+        <button type="button" class="secondary" id="annulla-ricordo" hidden>Annulla modifica</button></div>
+      </form>
+      <p id="stato-diario-storia" class="status-line" aria-live="polite"></p>
+      <h3>📚 I miei ricordi</h3>
+      <div id="elenco-ricordi"></div>
+      <button type="button" class="secondary" id="aggiorna-ricordi">↻ Aggiorna ricordi</button>
     </section>
   </main>
 </div>
@@ -1236,6 +1278,183 @@ el('medicine-giorno').addEventListener('change',mostraMedicine);
 el('form-terapia').addEventListener('submit',salvaTerapia);
 el('annulla-terapia').addEventListener('click',resetTerapia);
 el('form-medicina-bisogno').addEventListener('submit',salvaBisogno);
+
+
+// La mia storia: ricordi e fotografie su Supabase Storage privato.
+const BUCKET_RICORDI = 'foto-diario-mirea';
+let ricordiMirea = [];
+let fotoRicordiMirea = [];
+let ricordoInModifica = null;
+let ricordiOccupati = false;
+let fotoVisualizzazioni = [];
+function liberaFotoVisualizzazioni() {
+  fotoVisualizzazioni.forEach(url => URL.revokeObjectURL(url));
+  fotoVisualizzazioni = [];
+}
+function resetRicordo() {
+  el('form-ricordo').reset();
+  el('ricordo-data').value = dataOggiLocale();
+  ricordoInModifica = null;
+  el('titolo-form-ricordo').textContent = '💕 Aggiungi un ricordo';
+  el('salva-ricordo').textContent = 'Salva ricordo';
+  el('annulla-ricordo').hidden = true;
+}
+function modificaRicordo(r) {
+  ricordoInModifica = r.id;
+  el('ricordo-data').value = r.data_ricordo;
+  el('ricordo-ora').value = r.ora_ricordo ? r.ora_ricordo.slice(0,5) : '';
+  el('ricordo-titolo').value = r.titolo;
+  el('ricordo-categoria').value = r.categoria;
+  el('ricordo-racconto').value = r.racconto;
+  el('ricordo-nuove-foto').value = '';
+  el('titolo-form-ricordo').textContent = '✏️ Modifica il ricordo';
+  el('salva-ricordo').textContent = 'Salva modifiche e nuove foto';
+  el('annulla-ricordo').hidden = false;
+  el('form-ricordo').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function dataRicordoLeggibile(r) {
+  const data = new Date(r.data_ricordo+'T12:00:00').toLocaleDateString('it-IT',{day:'numeric',month:'long',year:'numeric'});
+  return data + (r.ora_ricordo ? ' · '+r.ora_ricordo.slice(0,5) : '');
+}
+async function mostraRicordi() {
+  const elenco = el('elenco-ricordi');
+  elenco.replaceChildren();
+  if (!ricordiMirea.length) {
+    aggiungiTesto(elenco,'small-note','Ancora nessun ricordo. Inizia con un momento speciale!');
+    return;
+  }
+  for (const r of ricordiMirea) {
+    const card = document.createElement('article'); card.className='ricordo-item';
+    aggiungiTesto(card,'small-note',dataRicordoLeggibile(r)+' · '+r.categoria);
+    aggiungiTesto(card,'item-title','💕 '+r.titolo);
+    aggiungiTesto(card,'ricordo-racconto',r.racconto);
+    const foto = fotoRicordiMirea.filter(f => f.ricordo_id === r.id);
+    if (foto.length) {
+      const griglia = document.createElement('div'); griglia.className = 'ricordo-foto';
+      for (const f of foto) {
+        const figure = document.createElement('figure');
+        const img = document.createElement('img'); img.alt = 'Fotografia del ricordo '+r.titolo; img.loading='lazy';
+        // getUser() e le policy RLS controllano l'accesso al bucket privato.
+        const risultato = await db.storage.from(BUCKET_RICORDI).download(f.percorso_foto);
+        if (risultato.error) {
+          aggiungiTesto(figure,'small-note','Foto non disponibile: '+risultato.error.message);
+        } else {
+          const url = URL.createObjectURL(risultato.data);
+          fotoVisualizzazioni.push(url); img.src=url; figure.appendChild(img);
+        }
+        figure.appendChild(bottoneAzione('🗑️ Rimuovi foto','danger',()=>eliminaFotoRicordo(f)));
+        griglia.appendChild(figure);
+      }
+      card.appendChild(griglia);
+    }
+    const azioni=document.createElement('div'); azioni.className='actions';
+    azioni.append(bottoneAzione('✏️ Modifica','secondary',()=>modificaRicordo(r)),
+      bottoneAzione('🗑️ Elimina ricordo','danger',()=>eliminaRicordo(r)));
+    card.appendChild(azioni); elenco.appendChild(card);
+  }
+}
+async function caricaRicordi() {
+  if (!await controllaAccesso()) return;
+  el('stato-diario-storia').textContent = 'Caricamento ricordi...';
+  const [a,b] = await Promise.all([
+    db.from('diario_mirea').select('id, data_ricordo, ora_ricordo, titolo, categoria, racconto').order('data_ricordo',{ascending:false}).order('ora_ricordo',{ascending:false}),
+    db.from('foto_diario_mirea').select('id, ricordo_id, percorso_foto').order('creato_il',{ascending:true})
+  ]);
+  if (a.error || b.error) { el('stato-diario-storia').textContent='Errore: '+(a.error||b.error).message; return; }
+  ricordiMirea=a.data||[]; fotoRicordiMirea=b.data||[];
+  liberaFotoVisualizzazioni();
+  await mostraRicordi();
+  el('stato-diario-storia').textContent='Ricordi aggiornati online.';
+}
+function validaFileRicordo(file) {
+  const tipi = ['image/jpeg','image/png','image/webp','image/heic','image/heif'];
+  const ext = (file.name.split('.').pop()||'').toLowerCase();
+  if (file.size > 10 * 1024 * 1024) throw Error('La fotografia «'+file.name+'» supera 10 MB.');
+  if (!tipi.includes(file.type) && !['jpg','jpeg','png','webp','heic','heif'].includes(ext))
+    throw Error('Formato non supportato: '+file.name);
+  const tipo = tipi.includes(file.type) ? file.type :
+    ({jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp',heic:'image/heic',heif:'image/heif'})[ext];
+  return {tipo, ext:({ 'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/heic':'heic','image/heif':'heif'})[tipo]};
+}
+async function caricaFotoPerRicordo(id, files) {
+  let riuscite=0;
+  for (const file of files) {
+    const {tipo,ext}=validaFileRicordo(file);
+    const percorso=id+'/'+crypto.randomUUID()+'.'+ext;
+    const caricamento=await db.storage.from(BUCKET_RICORDI).upload(percorso,file,{contentType:tipo,upsert:false});
+    if (caricamento.error) throw Error('Caricamento di '+file.name+': '+caricamento.error.message);
+    const inserimento=await db.from('foto_diario_mirea').insert({ricordo_id:id,percorso_foto:percorso}).select('id');
+    if (inserimento.error || !inserimento.data?.length) {
+      await db.storage.from(BUCKET_RICORDI).remove([percorso]);
+      throw Error('Collegamento fotografia non riuscito: '+(inserimento.error?.message||'nessuna riga salvata'));
+    }
+    riuscite++;
+  }
+  return riuscite;
+}
+async function salvaRicordo(event) {
+  event.preventDefault();
+  if (ricordiOccupati || !await controllaAccesso()) return;
+  const files=Array.from(el('ricordo-nuove-foto').files);
+  try { files.forEach(validaFileRicordo); } catch(e) { alert(e.message); return; }
+  const titolo=el('ricordo-titolo').value.trim(),racconto=el('ricordo-racconto').value.trim();
+  if (!titolo || !racconto || !el('ricordo-data').value) {alert('Inserisci data, titolo e racconto.');return;}
+  const campi={data_ricordo:el('ricordo-data').value,ora_ricordo:el('ricordo-ora').value||null,
+    titolo,categoria:el('ricordo-categoria').value,racconto,aggiornato_il:new Date().toISOString()};
+  ricordiOccupati=true;el('salva-ricordo').disabled=true;
+  let id=ricordoInModifica;
+  try {
+    const query=id ? db.from('diario_mirea').update(campi).eq('id',id).select('id')
+      : db.from('diario_mirea').insert(campi).select('id');
+    const {data,error}=await query;
+    if(error)throw error;
+    if(!data?.length)throw Error('Ricordo non salvato. Controlla i permessi.');
+    id=data[0].id;
+    if(files.length) {
+      el('stato-diario-storia').textContent='Ricordo salvato. Caricamento delle foto...';
+      await caricaFotoPerRicordo(id,files);
+    }
+    resetRicordo();await caricaRicordi();
+  } catch(e) {
+    alert('Attenzione: '+e.message+' Se il testo è già salvato, apri il ricordo in modifica e riprova ad aggiungere le foto mancanti.');
+    await caricaRicordi();
+  } finally {ricordiOccupati=false;el('salva-ricordo').disabled=false;}
+}
+async function eliminaFotoRicordo(f) {
+  if(ricordiOccupati || !confirm('Eliminare definitivamente questa fotografia?') || !await controllaAccesso())return;
+  ricordiOccupati=true;
+  try {
+    const risultato=await db.storage.from(BUCKET_RICORDI).remove([f.percorso_foto]);
+    if(risultato.error)throw risultato.error;
+    const {data,error}=await db.from('foto_diario_mirea').delete().eq('id',f.id).select('id');
+    if(error)throw error;
+    if(!data?.length)throw Error('Collegamento della fotografia non eliminato.');
+    await caricaRicordi();
+  } catch(e) {alert('Eliminazione non riuscita: '+e.message);await caricaRicordi();}
+  finally {ricordiOccupati=false;}
+}
+async function eliminaRicordo(r) {
+  if(ricordiOccupati || !confirm('Eliminare definitivamente il ricordo «'+r.titolo+'» e tutte le sue fotografie?') || !await controllaAccesso())return;
+  ricordiOccupati=true;
+  try {
+    const foto=fotoRicordiMirea.filter(f=>f.ricordo_id===r.id);
+    if(foto.length) {
+      const risultato=await db.storage.from(BUCKET_RICORDI).remove(foto.map(f=>f.percorso_foto));
+      if(risultato.error)throw risultato.error;
+    }
+    const {data,error}=await db.from('diario_mirea').delete().eq('id',r.id).select('id');
+    if(error)throw error;
+    if(!data?.length)throw Error('Ricordo non eliminato.');
+    if(ricordoInModifica===r.id)resetRicordo();
+    await caricaRicordi();
+  } catch(e) {alert('Eliminazione non riuscita: '+e.message);await caricaRicordi();}
+  finally {ricordiOccupati=false;}
+}
+el('apri-diario-storia').addEventListener('click',()=>cambiaPannello('pannello-diario-storia','apri-diario-storia',caricaRicordi));
+el('form-ricordo').addEventListener('submit',salvaRicordo);
+el('annulla-ricordo').addEventListener('click',resetRicordo);
+el('aggiorna-ricordi').addEventListener('click',caricaRicordi);
+resetRicordo();
 
 avviaApp();
 </script>
