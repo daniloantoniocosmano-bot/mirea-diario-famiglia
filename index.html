@@ -66,7 +66,43 @@ textarea { width:100%; padding:12px; margin:8px 0; border:1px solid #e7c3d2; bor
   <div class="top-actions"><button type="button" id="pulsante-esci">Esci dall'account</button></div>
   <main>
     <section class="card"><h2>👶 Il diario di Mirea</h2><p>Ogni giorno una nuova scoperta.</p><p id="stato" aria-live="polite"></p></section>
-    <section class="card"><h2>📊 Riepilogo di oggi</h2><div class="stats"><div><strong id="poppate">0</strong>Poppate</div><div><strong id="pannolini">0</strong>Pannolini</div></div></section>
+    <section class="card"><h2>📊 Riepilogo di oggi</h2><div class="stats"><div><strong id="poppate">0</strong>Poppate</div><div><strong id="pannolini">0</strong>Pannolini</div><div><strong id="nanne-oggi">0</strong>Nanne</div></div></section>
+    <section class="card">
+      <h2>😴 Nanna di Mirea</h2>
+      <p>Registra quando si addormenta e quando si sveglia, anche durante la notte.</p>
+      <button type="button" id="apri-nanne" aria-expanded="false">Gestisci la nanna</button>
+    </section>
+    <section class="card" id="pannello-nanne" hidden>
+      <h2>🌙 Diario della nanna</h2>
+      <p id="stato-nanna-in-corso" class="nanna-in-corso" aria-live="polite">Nessuna nanna in corso.</p>
+      <div class="actions">
+        <button type="button" id="inizia-nanna">🌙 Inizia nanna</button>
+        <button type="button" id="finisci-nanna">☀️ Fine nanna</button>
+        <button type="button" id="aggiorna-nanne" class="secondary">↻ Aggiorna</button>
+      </div>
+      <div class="nanna-totale">
+        <span>Sonno nelle ultime 24 ore</span>
+        <strong id="totale-nanne">0 ore e 0 minuti</strong>
+        <span class="small-note">Somma del tempo dormito che ricade nelle ultime 24 ore, inclusa una nanna in corso.</span>
+      </div>
+      <h3 id="titolo-nanna-manuale">Inserisci una nanna manualmente</h3>
+      <form id="form-nanna">
+        <div class="nanna-orari">
+          <div><label class="field-label" for="nanna-inizio">Inizio *</label><input id="nanna-inizio" type="datetime-local" required></div>
+          <div><label class="field-label" for="nanna-fine">Fine *</label><input id="nanna-fine" type="datetime-local"></div>
+        </div>
+        <label class="field-label" for="nanna-note">Note (facoltative)</label>
+        <textarea id="nanna-note" rows="2" placeholder="Es. Si è addormentata in culla"></textarea>
+        <div class="actions">
+          <button id="salva-nanna" type="submit">Salva nanna</button>
+          <button id="annulla-nanna" type="button" class="secondary" hidden>Annulla modifica</button>
+        </div>
+        <p class="small-note">Per una nuova registrazione manuale inserisci sia l'inizio sia la fine. Le nanne in corso si gestiscono con i pulsanti automatici.</p>
+      </form>
+      <p id="stato-nanne" class="status-line" aria-live="polite"></p>
+      <h3>Storico delle nanne</h3>
+      <div id="elenco-nanne"></div>
+    </section>
     <section class="card"><h2>🍼 Registra una poppata</h2>
       <select id="tipoPoppata"><option value="Seno sinistro">Seno sinistro</option><option value="Seno destro">Seno destro</option><option value="Entrambi i seni">Entrambi i seni</option><option value="Biberon">Biberon</option></select>
       <input id="durata" type="number" min="0" step="1" placeholder="Durata in minuti (facoltativa)">
@@ -141,42 +177,6 @@ textarea { width:100%; padding:12px; margin:8px 0; border:1px solid #e7c3d2; bor
       <div id="elenco-lista-nascita"></div>
       <button id="aggiorna-lista" type="button" class="secondary">↻ Aggiorna lista</button>
     </section>
-    <section class="card">
-      <h2>😴 Nanna di Mirea</h2>
-      <p>Registra quando si addormenta e quando si sveglia, anche durante la notte.</p>
-      <button type="button" id="apri-nanne" aria-expanded="false">Gestisci la nanna</button>
-    </section>
-    <section class="card" id="pannello-nanne" hidden>
-      <h2>🌙 Diario della nanna</h2>
-      <p id="stato-nanna-in-corso" class="nanna-in-corso" aria-live="polite">Nessuna nanna in corso.</p>
-      <div class="actions">
-        <button type="button" id="inizia-nanna">🌙 Inizia nanna</button>
-        <button type="button" id="finisci-nanna">☀️ Fine nanna</button>
-        <button type="button" id="aggiorna-nanne" class="secondary">↻ Aggiorna</button>
-      </div>
-      <div class="nanna-totale">
-        <span>Sonno nelle ultime 24 ore</span>
-        <strong id="totale-nanne">0 ore e 0 minuti</strong>
-        <span class="small-note">Somma del tempo dormito che ricade nelle ultime 24 ore, inclusa una nanna in corso.</span>
-      </div>
-      <h3 id="titolo-nanna-manuale">Inserisci una nanna manualmente</h3>
-      <form id="form-nanna">
-        <div class="nanna-orari">
-          <div><label class="field-label" for="nanna-inizio">Inizio *</label><input id="nanna-inizio" type="datetime-local" required></div>
-          <div><label class="field-label" for="nanna-fine">Fine *</label><input id="nanna-fine" type="datetime-local"></div>
-        </div>
-        <label class="field-label" for="nanna-note">Note (facoltative)</label>
-        <textarea id="nanna-note" rows="2" placeholder="Es. Si è addormentata in culla"></textarea>
-        <div class="actions">
-          <button id="salva-nanna" type="submit">Salva nanna</button>
-          <button id="annulla-nanna" type="button" class="secondary" hidden>Annulla modifica</button>
-        </div>
-        <p class="small-note">Per una nuova registrazione manuale inserisci sia l'inizio sia la fine. Le nanne in corso si gestiscono con i pulsanti automatici.</p>
-      </form>
-      <p id="stato-nanne" class="status-line" aria-live="polite"></p>
-      <h3>Storico delle nanne</h3>
-      <div id="elenco-nanne"></div>
-    </section>
     <section class="card"><h2>📅 Appuntamenti</h2><p>Organizzeremo gli impegni di famiglia.</p></section>
   </main>
 </div>
@@ -200,6 +200,7 @@ function mostraLogin(messaggio = '') {
   visite = [];
   listaNascita = [];
   nanne = [];
+  el('nanne-oggi').textContent = '0';
   el('contenuto-diario').hidden = true;
   el('schermata-login').hidden = false;
   el('login-password').value = '';
@@ -237,6 +238,7 @@ async function accedi(event) {
     }
     mostraDiario();
     await caricaEventi();
+    await caricaNanne();
   } catch (err) {
     mostraLogin('Errore di connessione. Riprova.');
   } finally { bottone.disabled = false; }
@@ -329,6 +331,7 @@ async function avviaApp() {
     if (!await controllaAccesso()) return;
     mostraDiario();
     await caricaEventi();
+    await caricaNanne();
   } catch { mostraLogin('Impossibile verificare la sessione.'); }
 }
 el('login-form').addEventListener('submit', accedi);
@@ -629,6 +632,11 @@ function modificaNanna(n) {
   el('form-nanna').scrollIntoView({behavior:'smooth',block:'start'});
 }
 function mostraNanne() {
+  // Conta le nanne iniziate durante la giornata locale, inclusa quella in corso.
+  const oggi = new Date().toDateString();
+  el('nanne-oggi').textContent = nanne.filter(n =>
+    new Date(n.inizio).toDateString() === oggi
+  ).length;
   const attiva = nannaAttiva();
   el('stato-nanna-in-corso').textContent = attiva
     ? '🌙 Nanna in corso dalle ' + dataOraLeggibile(attiva.inizio)
@@ -760,4 +768,6 @@ avviaApp();
 </script>
 </body>
 </html>
+
+
 
