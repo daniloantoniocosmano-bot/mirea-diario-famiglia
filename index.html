@@ -276,7 +276,7 @@ async function caricaVisite() {
 
   const { data, error } = await db
     .from('visite_regali')
-    .select('nome, regalo, data')
+    .select('id, nome, regalo, data')
     .eq('tipo', 'visita')
     .order('data', { ascending: false });
 
@@ -297,6 +297,25 @@ async function caricaVisite() {
     riga.textContent = visita.nome +
       (visita.regalo ? ' — Regalo: ' + visita.regalo : '') +
       (visita.data ? ' — ' + visita.data : '');
+      const pulsante = document.createElement('button');
+pulsante.textContent = '🗑️ Elimina';
+pulsante.type = 'button';
+riga.appendChild(pulsante);
+pulsante.addEventListener('click', async () => {
+  if (!confirm('Vuoi eliminare questa visita?')) return;
+
+  const { error } = await db
+    .from('visite_regali')
+    .delete()
+    .eq('id', visita.id);
+
+  if (error) {
+    alert('Errore: ' + error.message);
+    return;
+  }
+
+  await caricaVisite();
+});
     elenco.appendChild(riga);
   });
 }
