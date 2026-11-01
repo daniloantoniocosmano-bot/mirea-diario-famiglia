@@ -64,6 +64,14 @@ input, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #e7
   <p>Registriamo le persone che hanno fatto visita a Mirea e i regali ricevuti.</p>
   <button type="button" id="apri-visite">Gestisci visite e regali</button>
 </section>
+<div id="pannello-visite" class="card" hidden>
+  <h2>🎁 Registra una visita</h2>
+  <input id="visita-nome" placeholder="Nome del visitatore">
+  <input id="visita-regalo" placeholder="Regalo ricevuto (facoltativo)">
+  <button type="button" id="salva-visita">Salva visita</button>
+  <h3>Visite registrate</h3>
+  <div id="elenco-visite"></div>
+</div>
 
 <section class="card">
   <h2>🍼 Lista nascita di Mirea</h2>
@@ -229,8 +237,36 @@ el('pulsante-poppata').addEventListener('click', aggiungiPoppata);
 el('pulsante-pannolino').addEventListener('click', aggiungiPannolino);
 el('pulsante-aggiorna').addEventListener('click', caricaEventi);
 
-el('apri-visite').addEventListener('click', () => alert('Visite e regali: sezione in preparazione.'));
+el('apri-visite').addEventListener('click', () => {
+  el('pannello-visite').hidden = !el('pannello-visite').hidden;
+});
 el('apri-lista-nascita').addEventListener('click', () => alert('Lista nascita: sezione in preparazione.'));
+
+el('salva-visita').addEventListener('click', async () => {
+  const nome = el('visita-nome').value.trim();
+  const regalo = el('visita-regalo').value.trim();
+
+  if (!nome) {
+    alert('Inserisci il nome del visitatore.');
+    return;
+  }
+
+  const { error } = await db.from('visite_regali').insert({
+    nome: nome,
+    regalo: regalo || null,
+    tipo: 'visita',
+    data: new Date().toISOString().slice(0, 10)
+  });
+
+  if (error) {
+    alert('Errore nel salvataggio: ' + error.message);
+    return;
+  }
+
+  alert('Visita salvata correttamente!');
+  el('visita-nome').value = '';
+  el('visita-regalo').value = '';
+});
 
 avviaApp();
 </script>
