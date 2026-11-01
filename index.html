@@ -28,6 +28,19 @@ input, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #e7
 .top-actions { text-align: right; max-width: 550px; margin: 0 auto; padding: 4px 16px 0; }
 .top-actions button { background: #a64e73; padding: 9px 14px; }
 #stato { color: #806b75; font-size: 14px; }
+.field-label { display:block; margin-top:12px; font-weight:bold; font-size:14px; }
+.checkline { display:flex; align-items:center; gap:9px; margin:12px 0; }
+.checkline input, .ricevuto-check { width:auto; margin:0; flex:none; }
+.actions { display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }
+.actions button { padding:8px 11px; font-size:13px; }
+.secondary { background:#f2e1e8; color:#603747; }
+.danger { background:#f5e7e7; color:#993747; }
+.small-note { color:#806b75; font-size:13px; }
+.item-title { font-weight:bold; overflow-wrap:anywhere; }
+.item-details { font-size:14px; margin-top:5px; white-space:pre-wrap; overflow-wrap:anywhere; }
+.status-line { color:#806b75; font-size:13px; min-height:1em; }
+textarea { width:100%; padding:12px; margin:8px 0; border:1px solid #e7c3d2; border-radius:9px; font:inherit; resize:vertical; }
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -58,39 +71,70 @@ input, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #e7
       <button type="button" id="pulsante-pannolino">+ Registra cambio</button>
     </section>
     <section class="card"><h2>📖 Storico degli eventi</h2><button type="button" id="pulsante-aggiorna">↻ Aggiorna</button><div id="storico"></div></section>
-
-<section class="card">
-  <h2>🎁 Visite e regali</h2>
-  <p>Registriamo le persone che hanno fatto visita a Mirea e i regali ricevuti.</p>
-  <button type="button" id="apri-visite">Gestisci visite e regali</button>
-</section>
-<div id="pannello-visite" class="card" hidden>
-  <h2>🎁 Registra una visita</h2>
-  <input id="visita-nome" placeholder="Nome del visitatore">
-  <input id="visita-regalo" placeholder="Regalo ricevuto (facoltativo)">
-  <button type="button" id="salva-visita">Salva visita</button>
-  <h3>Visite registrate</h3>
-  <div id="elenco-visite"></div>
-</div>
-
-<section class="card">
-  <h2>🍼 Lista nascita di Mirea</h2>
-  <p>Gli articoli che desideriamo e i regali ricevuti.</p>
-  <button type="button" id="apri-lista-nascita">Gestisci lista nascita</button>
-</section>
-
-
-<div id="pannello-lista-nascita" class="card" hidden>
-  <h2>🎁 Gestisci lista nascita</h2>
-<input type="text" id="lista-articolo" placeholder="Nome dell'articolo (es. passeggino)">
-<input type="number" id="lista-prezzo" placeholder="Prezzo indicativo (€)" min="0" step="0.01">
-<label><input type="checkbox" id="lista-ricevuto"> Regalo già ricevuto</label>
-<input type="text" id="lista-regalato-da" placeholder="Regalato da (facoltativo)">
-<button type="button" id="salva-articolo">Salva articolo</button>
-<div id="elenco-lista-nascita"></div>
-</div>
-
-
+    <section class="card">
+      <h2>🎁 Visite e regali</h2>
+      <p>Registra chi ha conosciuto Mirea e chi le ha fatto un regalo anche senza visita.</p>
+      <button type="button" id="apri-visite" aria-expanded="false">Gestisci visite e regali</button>
+    </section>
+    <section class="card" id="pannello-visite" hidden>
+      <h2 id="titolo-visita">Nuova visita o regalo</h2>
+      <form id="form-visita">
+        <label class="field-label" for="visita-nome">Persona, coppia o famiglia *</label>
+        <input id="visita-nome" required maxlength="180" placeholder="Es. Antonietta e Maurizio">
+        <label class="field-label" for="visita-tipo">Tipo di registrazione</label>
+        <select id="visita-tipo">
+          <option value="visita">Visita ricevuta</option>
+          <option value="regalo_senza_visita">Regalo senza visita</option>
+        </select>
+        <label class="field-label" for="visita-data">Data</label>
+        <input id="visita-data" type="date" required>
+        <label class="field-label" for="visita-regalo">Regalo (facoltativo)</label>
+        <input id="visita-regalo" placeholder="Es. Copertina o regalo in denaro">
+        <label class="field-label" for="visita-valore">Valore del regalo in € (facoltativo)</label>
+        <input id="visita-valore" type="number" min="0" step="0.01" placeholder="Es. 50,00">
+        <label class="checkline"><input type="checkbox" id="visita-bomboniera"> Bomboniera consegnata</label>
+        <label class="field-label" for="visita-note">Note (facoltative)</label>
+        <textarea id="visita-note" rows="2" placeholder="Informazioni aggiuntive"></textarea>
+        <div class="actions">
+          <button type="submit" id="salva-visita">Salva registrazione</button>
+          <button type="button" class="secondary" id="annulla-visita" hidden>Annulla modifica</button>
+        </div>
+      </form>
+      <p id="stato-visite" class="status-line" aria-live="polite"></p>
+      <h3>Visite ricevute</h3>
+      <div id="elenco-visite"></div>
+      <h3>Regali senza visita</h3>
+      <div id="elenco-regali-senza-visita"></div>
+      <button type="button" class="secondary" id="aggiorna-visite">↻ Aggiorna elenchi</button>
+    </section>
+    <section class="card">
+      <h2>🍼 Lista nascita di Mirea</h2>
+      <p>La compilate voi, articolo per articolo. Prezzo e note sono facoltativi.</p>
+      <button type="button" id="apri-lista-nascita" aria-expanded="false">Gestisci lista nascita</button>
+    </section>
+    <section class="card" id="pannello-lista-nascita" hidden>
+      <h2 id="titolo-articolo">Aggiungi articolo</h2>
+      <form id="form-articolo">
+        <label class="field-label" for="lista-articolo">Articolo *</label>
+        <input id="lista-articolo" required placeholder="Es. Passeggino">
+        <label class="field-label" for="lista-prezzo">Prezzo o valore € (facoltativo)</label>
+        <input id="lista-prezzo" type="number" min="0" step="0.01" placeholder="Es. 100,00">
+        <label class="checkline"><input type="checkbox" id="lista-ricevuto"> Già ricevuto</label>
+        <label class="field-label" for="lista-regalato-da">Regalato da (facoltativo)</label>
+        <input id="lista-regalato-da" placeholder="Persona, coppia o famiglia">
+        <label class="field-label" for="lista-note">Note (facoltative)</label>
+        <textarea id="lista-note" rows="2" placeholder="Es. Colore o modello"></textarea>
+        <div class="actions">
+          <button id="salva-articolo" type="submit">Salva articolo</button>
+          <button id="annulla-articolo" type="button" class="secondary" hidden>Annulla modifica</button>
+        </div>
+      </form>
+      <p id="stato-lista" class="status-line" aria-live="polite"></p>
+      <h3>Articoli della lista</h3>
+      <p id="riepilogo-lista" class="small-note"></p>
+      <div id="elenco-lista-nascita"></div>
+      <button id="aggiorna-lista" type="button" class="secondary">↻ Aggiorna lista</button>
+    </section>
     <section class="card"><h2>📅 Appuntamenti</h2><p>Organizzeremo gli impegni di famiglia.</p></section>
   </main>
 </div>
@@ -111,6 +155,8 @@ let operazioneInCorso = false;
 function autorizzato(user) { return Boolean(user && AUTORIZZATI.has(user.id)); }
 function mostraLogin(messaggio = '') {
   eventi = [];
+  visite = [];
+  listaNascita = [];
   el('contenuto-diario').hidden = true;
   el('schermata-login').hidden = false;
   el('login-password').value = '';
@@ -240,7 +286,6 @@ async function avviaApp() {
     if (!await controllaAccesso()) return;
     mostraDiario();
     await caricaEventi();
-    await caricaVisite();
   } catch { mostraLogin('Impossibile verificare la sessione.'); }
 }
 el('login-form').addEventListener('submit', accedi);
@@ -249,156 +294,260 @@ el('pulsante-poppata').addEventListener('click', aggiungiPoppata);
 el('pulsante-pannolino').addEventListener('click', aggiungiPannolino);
 el('pulsante-aggiorna').addEventListener('click', caricaEventi);
 
-el('apri-visite').addEventListener('click', () => {
-  el('pannello-visite').hidden = !el('pannello-visite').hidden;
-});
 
-el('salva-visita').addEventListener('click', async () => {
-  const nome = el('visita-nome').value.trim();
-  const regalo = el('visita-regalo').value.trim();
+// Visite e regali, salvati nella tabella public.visite_regali.
+let visite = [];
+let visitaInModifica = null;
+let visiteOccupate = false;
+let listaNascita = [];
+let articoloInModifica = null;
+let listaOccupata = false;
 
-  if (!nome) {
-    alert('Inserisci il nome del visitatore.');
-    return;
+function dataOggiLocale() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function euro(valore) {
+  return valore == null ? '' : Number(valore).toLocaleString('it-IT', {style:'currency',currency:'EUR'});
+}
+function numeroOpzionale(id) {
+  const valore = el(id).value.trim();
+  if (!valore) return null;
+  const numero = Number(valore.replace(',', '.'));
+  if (!Number.isFinite(numero) || numero < 0) throw new Error('Inserisci un valore in euro valido.');
+  return numero;
+}
+function aggiungiTesto(parent, classe, testo) {
+  const nodo = document.createElement('div');
+  nodo.className = classe;
+  nodo.textContent = testo;
+  parent.appendChild(nodo);
+}
+function bottoneAzione(testo, classe, azione) {
+  const pulsante = document.createElement('button');
+  pulsante.type = 'button';
+  pulsante.className = classe;
+  pulsante.textContent = testo;
+  pulsante.addEventListener('click', azione);
+  return pulsante;
+}
+function resetVisita() {
+  el('form-visita').reset();
+  el('visita-data').value = dataOggiLocale();
+  visitaInModifica = null;
+  el('titolo-visita').textContent = 'Nuova visita o regalo';
+  el('salva-visita').textContent = 'Salva registrazione';
+  el('annulla-visita').hidden = true;
+}
+function modificaVisita(v) {
+  visitaInModifica = v.id;
+  el('visita-nome').value = v.nome || '';
+  el('visita-tipo').value = v.tipo;
+  el('visita-data').value = v.data || dataOggiLocale();
+  el('visita-regalo').value = v.regalo || '';
+  el('visita-valore').value = v.valore == null ? '' : v.valore;
+  el('visita-bomboniera').checked = Boolean(v.bomboniera_consegnata);
+  el('visita-note').value = v.note || '';
+  el('titolo-visita').textContent = 'Modifica registrazione';
+  el('salva-visita').textContent = 'Salva modifiche';
+  el('annulla-visita').hidden = false;
+  el('pannello-visite').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function mostraVisite() {
+  const ricevute = el('elenco-visite');
+  const senza = el('elenco-regali-senza-visita');
+  ricevute.replaceChildren(); senza.replaceChildren();
+  for (const tipo of ['visita','regalo_senza_visita']) {
+    const lista = visite.filter(v => v.tipo === tipo);
+    const contenitore = tipo === 'visita' ? ricevute : senza;
+    if (!lista.length) { aggiungiTesto(contenitore,'small-note',tipo === 'visita' ? 'Nessuna visita registrata.' : 'Nessun regalo senza visita.'); continue; }
+    lista.forEach(v => {
+      const riga = document.createElement('div'); riga.className = 'item';
+      aggiungiTesto(riga,'item-title',v.nome);
+      const descrizione = [v.data ? new Date(v.data+'T12:00:00').toLocaleDateString('it-IT') : '',
+        v.regalo ? 'Regalo: '+v.regalo : 'Nessun regalo indicato',
+        v.valore != null ? 'Valore: '+euro(v.valore) : '',
+        v.bomboniera_consegnata ? 'Bomboniera consegnata ✓' : 'Bomboniera da consegnare',
+        v.note || ''].filter(Boolean).join(' · ');
+      aggiungiTesto(riga,'item-details',descrizione);
+      const azioni = document.createElement('div'); azioni.className='actions';
+      azioni.append(
+        bottoneAzione('✏️ Modifica','secondary',()=>modificaVisita(v)),
+        bottoneAzione('🗑️ Elimina','danger',()=>eliminaVisita(v))
+      );
+      riga.appendChild(azioni); contenitore.appendChild(riga);
+    });
   }
-
-  const { error } = await db.from('visite_regali').insert({
-    nome: nome,
-    regalo: regalo || null,
-    tipo: 'visita',
-    data: new Date().toISOString().slice(0, 10)
-  });
-
-  if (error) {
-    alert('Errore nel salvataggio: ' + error.message);
-    return;
-  }
-
-  alert('Visita salvata correttamente!');
-  await caricaVisite();
-  el('visita-nome').value = '';
-  el('visita-regalo').value = '';
-});
-
+}
 async function caricaVisite() {
-  const elenco = el('elenco-visite');
-  elenco.textContent = 'Caricamento visite...';
+  if (!await controllaAccesso()) return;
+  el('stato-visite').textContent = 'Caricamento visite e regali...';
+  const {data,error} = await db.from('visite_regali')
+    .select('id, nome, tipo, data, regalo, valore, bomboniera_consegnata, note')
+    .order('data',{ascending:false}).order('creato_il',{ascending:false});
+  if(error) { el('stato-visite').textContent='Errore: '+error.message; return; }
+  visite = data || [];
+  mostraVisite();
+  el('stato-visite').textContent = 'Dati aggiornati online.';
+}
+async function salvaVisita(event) {
+  event.preventDefault();
+  if (visiteOccupate || !await controllaAccesso()) return;
+  const nome = el('visita-nome').value.trim();
+  if (!nome) { alert('Inserisci il nome della persona, coppia o famiglia.'); return; }
+  let valore;
+  try { valore = numeroOpzionale('visita-valore'); } catch(e) {alert(e.message); return;}
+  const campi = {nome, tipo:el('visita-tipo').value, data:el('visita-data').value,
+    regalo:el('visita-regalo').value.trim() || null, valore,
+    bomboniera_consegnata:el('visita-bomboniera').checked,
+    note:el('visita-note').value.trim() || null};
+  visiteOccupate=true; el('salva-visita').disabled=true;
+  try {
+    const richiesta = visitaInModifica
+      ? db.from('visite_regali').update(campi).eq('id',visitaInModifica).select('id')
+      : db.from('visite_regali').insert(campi).select('id');
+    const {data,error} = await richiesta;
+    if (error) throw error;
+    if (!data?.length) throw new Error('Nessuna registrazione aggiornata. Controlla i permessi su Supabase.');
+    resetVisita();
+    await caricaVisite();
+  } catch(e) {alert('Salvataggio non riuscito: '+e.message);}
+  finally {visiteOccupate=false;el('salva-visita').disabled=false;}
+}
+async function eliminaVisita(v) {
+  if (visiteOccupate || !confirm('Eliminare la registrazione di '+v.nome+'?')) return;
+  if (!await controllaAccesso()) return;
+  visiteOccupate=true;
+  try {
+    const {data,error}=await db.from('visite_regali').delete().eq('id',v.id).select('id');
+    if(error) throw error;
+    if(!data?.length) throw new Error('Nessuna registrazione eliminata. Controlla i permessi su Supabase.');
+    if(visitaInModifica===v.id) resetVisita();
+    await caricaVisite();
+  } catch(e) {alert('Eliminazione non riuscita: '+e.message);}
+  finally {visiteOccupate=false;}
+}
 
-  const { data, error } = await db
-    .from('visite_regali')
-    .select('id, nome, regalo, data')
-    .eq('tipo', 'visita')
-    .order('data', { ascending: false });
-
-  if (error) {
-    elenco.textContent = 'Errore: ' + error.message;
-    return;
-  }
-
+// Lista nascita: la casella Ricevuto si salva immediatamente su Supabase.
+function resetArticolo() {
+  el('form-articolo').reset();
+  articoloInModifica = null;
+  el('titolo-articolo').textContent = 'Aggiungi articolo';
+  el('salva-articolo').textContent = 'Salva articolo';
+  el('annulla-articolo').hidden = true;
+}
+function modificaArticolo(item) {
+  articoloInModifica = item.id;
+  el('lista-articolo').value = item.articolo || '';
+  el('lista-prezzo').value = item.prezzo == null ? '' : item.prezzo;
+  el('lista-ricevuto').checked = Boolean(item.ricevuto);
+  el('lista-regalato-da').value = item.regalato_da || '';
+  el('lista-note').value = item.note || '';
+  el('titolo-articolo').textContent = 'Modifica articolo';
+  el('salva-articolo').textContent = 'Salva modifiche';
+  el('annulla-articolo').hidden = false;
+  el('pannello-lista-nascita').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function mostraListaNascita() {
+  const elenco = el('elenco-lista-nascita');
   elenco.replaceChildren();
-
-  if (!data.length) {
-    elenco.textContent = 'Nessuna visita registrata.';
-    return;
-  }
-
-  data.forEach(visita => {
-    const riga = document.createElement('p');
-    riga.textContent = visita.nome +
-      (visita.regalo ? ' — Regalo: ' + visita.regalo : '') +
-      (visita.data ? ' — ' + visita.data : '');
-      const pulsante = document.createElement('button');
-pulsante.textContent = '🗑️ Elimina';
-pulsante.type = 'button';
-riga.appendChild(pulsante);
-pulsante.addEventListener('click', async () => {
-  if (!confirm('Vuoi eliminare questa visita?')) return;
-
-  const { error } = await db
-    .from('visite_regali')
-    .delete()
-    .eq('id', visita.id);
-
-  if (error) {
-    alert('Errore: ' + error.message);
-    return;
-  }
-
-  await caricaVisite();
-});
-    elenco.appendChild(riga);
+  const ricevuti = listaNascita.filter(item=>item.ricevuto).length;
+  el('riepilogo-lista').textContent = `${ricevuti} ricevuti su ${listaNascita.length} articoli`;
+  if(!listaNascita.length) {aggiungiTesto(elenco,'small-note','Nessun articolo registrato.');return;}
+  listaNascita.forEach(item=>{
+    const riga = document.createElement('div'); riga.className = 'item';
+    const intestazione = document.createElement('label'); intestazione.className='checkline';
+    const casella = document.createElement('input'); casella.type='checkbox'; casella.className='ricevuto-check';
+    casella.checked=Boolean(item.ricevuto); casella.setAttribute('aria-label','Ricevuto: '+item.articolo);
+    const nome = document.createElement('span'); nome.className='item-title'; nome.textContent=item.articolo;
+    intestazione.append(casella,nome); riga.appendChild(intestazione);
+    const dettagli = [item.prezzo != null ? euro(item.prezzo) : '',
+      item.regalato_da ? 'Regalato da: '+item.regalato_da : '',item.note || ''].filter(Boolean).join(' · ');
+    if(dettagli) aggiungiTesto(riga,'item-details',dettagli);
+    const azioni = document.createElement('div'); azioni.className='actions';
+    azioni.append(bottoneAzione('✏️ Modifica','secondary',()=>modificaArticolo(item)),
+      bottoneAzione('🗑️ Elimina','danger',()=>eliminaArticolo(item)));
+    riga.appendChild(azioni); elenco.appendChild(riga);
+    casella.addEventListener('change',()=>aggiornaRicevuto(item,casella));
   });
 }
-
-
-document.getElementById('apri-lista-nascita').addEventListener('click', () => {
-  const pannello = document.getElementById('pannello-lista-nascita');
-  pannello.hidden = !pannello.hidden;
-  
-if (!pannello.hidden) caricaListaNascita();
-
-});
-
-document.getElementById('salva-articolo').addEventListener('click', async () => {
-  const articolo = document.getElementById('lista-articolo').value.trim();
-  const prezzo = document.getElementById('lista-prezzo').value;
-  const ricevuto = document.getElementById('lista-ricevuto').checked;
-  const regalatoDa = document.getElementById('lista-regalato-da').value.trim();
-
-  if (!articolo) {
-    alert('Inserisci il nome dell’articolo.');
-    return;
-  }
-  
-const { error } = await db.from('lista_nascita').insert({
-  articolo: articolo,
-  prezzo: prezzo === '' ? null : Number(prezzo),
-  ricevuto: ricevuto,
-  regalato_da: regalatoDa
-});
-
-if (error) {
-  alert('Errore nel salvataggio: ' + error.message);
-  return;
-}
-
-alert('Articolo salvato correttamente!');
-
-await caricaListaNascita();
-
-});
-
 async function caricaListaNascita() {
-  const elenco = document.getElementById('elenco-lista-nascita');
-  elenco.textContent = 'Caricamento articoli...';
-
-  const { data, error } = await db
-    .from('lista_nascita')
-    .select('id, articolo, prezzo, ricevuto, regalato_da')
-    .order('creato_il', { ascending: false });
-
-  if (error) {
-    elenco.textContent = 'Errore: ' + error.message;
-    return;
-  }
-
-  elenco.replaceChildren();
-
-  if (!data.length) {
-    elenco.textContent = 'Nessun articolo registrato.';
-    return;
-  }
-
-  data.forEach(item => {
-    const riga = document.createElement('p');
-    riga.textContent = (item.ricevuto ? '✅ ' : '🎁 ') + item.articolo +
-      (item.prezzo != null ? ' — € ' + item.prezzo : '') +
-      (item.regalato_da ? ' — Da: ' + item.regalato_da : '');
-    elenco.appendChild(riga);
-  });
+  if(!await controllaAccesso()) return;
+  el('stato-lista').textContent = 'Caricamento articoli...';
+  const {data,error}=await db.from('lista_nascita')
+    .select('id, articolo, prezzo, ricevuto, regalato_da, note')
+    .order('creato_il',{ascending:false});
+  if(error) {el('stato-lista').textContent='Errore: '+error.message;return;}
+  listaNascita=data || [];
+  mostraListaNascita();
+  el('stato-lista').textContent='Lista aggiornata online.';
 }
+async function aggiornaRicevuto(item,casella) {
+  if(listaOccupata || !await controllaAccesso()) { casella.checked=Boolean(item.ricevuto);return; }
+  const nuovoValore=casella.checked;
+  listaOccupata=true; casella.disabled=true;
+  try {
+    const {data,error}=await db.from('lista_nascita').update({ricevuto:nuovoValore}).eq('id',item.id).select('id');
+    if(error) throw error;
+    if(!data?.length) throw new Error('Nessuna riga aggiornata. Controlla i permessi su Supabase.');
+    await caricaListaNascita();
+  } catch(e) {casella.checked=Boolean(item.ricevuto); alert('Spunta non salvata: '+e.message);await caricaListaNascita();}
+  finally {listaOccupata=false;casella.disabled=false;}
+}
+async function salvaArticolo(event) {
+  event.preventDefault();
+  if(listaOccupata || !await controllaAccesso()) return;
+  const articolo=el('lista-articolo').value.trim();
+  if(!articolo) {alert('Inserisci il nome dell’articolo.');return;}
+  let prezzo;
+  try {prezzo=numeroOpzionale('lista-prezzo');} catch(e) {alert(e.message);return;}
+  const campi={articolo, prezzo, ricevuto:el('lista-ricevuto').checked,
+    regalato_da:el('lista-regalato-da').value.trim() || null,
+    note:el('lista-note').value.trim() || null};
+  listaOccupata=true;el('salva-articolo').disabled=true;
+  try {
+    const richiesta=articoloInModifica
+      ? db.from('lista_nascita').update(campi).eq('id',articoloInModifica).select('id')
+      : db.from('lista_nascita').insert(campi).select('id');
+    const {data,error}=await richiesta;
+    if(error) throw error;
+    if(!data?.length) throw new Error('Nessun articolo aggiornato. Controlla i permessi su Supabase.');
+    resetArticolo();
+    await caricaListaNascita();
+  } catch(e) {alert('Salvataggio non riuscito: '+e.message);}
+  finally {listaOccupata=false;el('salva-articolo').disabled=false;}
+}
+async function eliminaArticolo(item) {
+  if(listaOccupata || !confirm('Eliminare «'+item.articolo+'» dalla lista nascita?')) return;
+  if(!await controllaAccesso()) return;
+  listaOccupata=true;
+  try {
+    const {data,error}=await db.from('lista_nascita').delete().eq('id',item.id).select('id');
+    if(error) throw error;
+    if(!data?.length) throw new Error('Nessun articolo eliminato. Controlla i permessi su Supabase.');
+    if(articoloInModifica===item.id) resetArticolo();
+    await caricaListaNascita();
+  } catch(e) {alert('Eliminazione non riuscita: '+e.message);}
+  finally {listaOccupata=false;}
+}
+function cambiaPannello(pannelloId,bottoneId,caricamento) {
+  const pannello=el(pannelloId);
+  pannello.hidden=!pannello.hidden;
+  el(bottoneId).setAttribute('aria-expanded',String(!pannello.hidden));
+  if(!pannello.hidden) caricamento();
+}
+el('apri-visite').addEventListener('click',()=>cambiaPannello('pannello-visite','apri-visite',caricaVisite));
+el('apri-lista-nascita').addEventListener('click',()=>cambiaPannello('pannello-lista-nascita','apri-lista-nascita',caricaListaNascita));
+el('form-visita').addEventListener('submit',salvaVisita);
+el('form-articolo').addEventListener('submit',salvaArticolo);
+el('annulla-visita').addEventListener('click',resetVisita);
+el('annulla-articolo').addEventListener('click',resetArticolo);
+el('aggiorna-visite').addEventListener('click',caricaVisite);
+el('aggiorna-lista').addEventListener('click',caricaListaNascita);
+el('visita-data').value=dataOggiLocale();
 
 avviaApp();
 </script>
 </body>
 </html>
+
