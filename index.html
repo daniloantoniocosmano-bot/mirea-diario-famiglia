@@ -229,6 +229,7 @@ async function avviaApp() {
     if (!await controllaAccesso()) return;
     mostraDiario();
     await caricaEventi();
+    await caricaVisite();
   } catch { mostraLogin('Impossibile verificare la sessione.'); }
 }
 el('login-form').addEventListener('submit', accedi);
@@ -264,9 +265,41 @@ el('salva-visita').addEventListener('click', async () => {
   }
 
   alert('Visita salvata correttamente!');
+  await caricaVisite();
   el('visita-nome').value = '';
   el('visita-regalo').value = '';
 });
+
+async function caricaVisite() {
+  const elenco = el('elenco-visite');
+  elenco.textContent = 'Caricamento visite...';
+
+  const { data, error } = await db
+    .from('visite_regali')
+    .select('nome, regalo, data')
+    .eq('tipo', 'visita')
+    .order('data', { ascending: false });
+
+  if (error) {
+    elenco.textContent = 'Errore: ' + error.message;
+    return;
+  }
+
+  elenco.replaceChildren();
+
+  if (!data.length) {
+    elenco.textContent = 'Nessuna visita registrata.';
+    return;
+  }
+
+  data.forEach(visita => {
+    const riga = document.createElement('p');
+    riga.textContent = visita.nome +
+      (visita.regalo ? ' — Regalo: ' + visita.regalo : '') +
+      (visita.data ? ' — ' + visita.data : '');
+    elenco.appendChild(riga);
+  });
+}
 
 avviaApp();
 </script>
