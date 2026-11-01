@@ -58,7 +58,20 @@ input, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #e7
       <button type="button" id="pulsante-pannolino">+ Registra cambio</button>
     </section>
     <section class="card"><h2>📖 Storico degli eventi</h2><button type="button" id="pulsante-aggiorna">↻ Aggiorna</button><div id="storico"></div></section>
-    <section class="card"><h2>🎁 Visite e regali</h2><p>Presto registreremo anche le visite e i regali.</p></section>
+
+<section class="card">
+  <h2>🎁 Visite e regali</h2>
+  <p>Registriamo le persone che hanno fatto visita a Mirea e i regali ricevuti.</p>
+  <button type="button" id="apri-visite">Gestisci visite e regali</button>
+</section>
+
+<section class="card">
+  <h2>🍼 Lista nascita di Mirea</h2>
+  <p>Gli articoli che desideriamo e i regali ricevuti.</p>
+  <button type="button" id="apri-lista-nascita">Gestisci lista nascita</button>
+</section>
+
+
     <section class="card"><h2>📅 Appuntamenti</h2><p>Organizzeremo gli impegni di famiglia.</p></section>
   </main>
 </div>
@@ -215,6 +228,10 @@ el('pulsante-esci').addEventListener('click', esci);
 el('pulsante-poppata').addEventListener('click', aggiungiPoppata);
 el('pulsante-pannolino').addEventListener('click', aggiungiPannolino);
 el('pulsante-aggiorna').addEventListener('click', caricaEventi);
+
+el('apri-visite').addEventListener('click', () => alert('Visite e regali: sezione in preparazione.'));
+el('apri-lista-nascita').addEventListener('click', () => alert('Lista nascita: sezione in preparazione.'));
+
 avviaApp();
 </script>
 </body>
