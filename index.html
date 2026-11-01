@@ -40,6 +40,12 @@ input, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #e7
 .item-details { font-size:14px; margin-top:5px; white-space:pre-wrap; overflow-wrap:anywhere; }
 .status-line { color:#806b75; font-size:13px; min-height:1em; }
 textarea { width:100%; padding:12px; margin:8px 0; border:1px solid #e7c3d2; border-radius:9px; font:inherit; resize:vertical; }
+.nanna-totale { background:#fff0f6; border-radius:12px; padding:13px; margin:12px 0; }
+.nanna-totale strong { font-size:24px; color:#c84d80; display:block; }
+.nanna-in-corso { font-weight:bold; color:#a64e73; }
+.nanna-orari { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.nanna-orari input { min-width:0; }
+@media(max-width:390px) { .nanna-orari { grid-template-columns:1fr; } }
 
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -135,6 +141,42 @@ textarea { width:100%; padding:12px; margin:8px 0; border:1px solid #e7c3d2; bor
       <div id="elenco-lista-nascita"></div>
       <button id="aggiorna-lista" type="button" class="secondary">↻ Aggiorna lista</button>
     </section>
+    <section class="card">
+      <h2>😴 Nanna di Mirea</h2>
+      <p>Registra quando si addormenta e quando si sveglia, anche durante la notte.</p>
+      <button type="button" id="apri-nanne" aria-expanded="false">Gestisci la nanna</button>
+    </section>
+    <section class="card" id="pannello-nanne" hidden>
+      <h2>🌙 Diario della nanna</h2>
+      <p id="stato-nanna-in-corso" class="nanna-in-corso" aria-live="polite">Nessuna nanna in corso.</p>
+      <div class="actions">
+        <button type="button" id="inizia-nanna">🌙 Inizia nanna</button>
+        <button type="button" id="finisci-nanna">☀️ Fine nanna</button>
+        <button type="button" id="aggiorna-nanne" class="secondary">↻ Aggiorna</button>
+      </div>
+      <div class="nanna-totale">
+        <span>Sonno nelle ultime 24 ore</span>
+        <strong id="totale-nanne">0 ore e 0 minuti</strong>
+        <span class="small-note">Somma del tempo dormito che ricade nelle ultime 24 ore, inclusa una nanna in corso.</span>
+      </div>
+      <h3 id="titolo-nanna-manuale">Inserisci una nanna manualmente</h3>
+      <form id="form-nanna">
+        <div class="nanna-orari">
+          <div><label class="field-label" for="nanna-inizio">Inizio *</label><input id="nanna-inizio" type="datetime-local" required></div>
+          <div><label class="field-label" for="nanna-fine">Fine *</label><input id="nanna-fine" type="datetime-local"></div>
+        </div>
+        <label class="field-label" for="nanna-note">Note (facoltative)</label>
+        <textarea id="nanna-note" rows="2" placeholder="Es. Si è addormentata in culla"></textarea>
+        <div class="actions">
+          <button id="salva-nanna" type="submit">Salva nanna</button>
+          <button id="annulla-nanna" type="button" class="secondary" hidden>Annulla modifica</button>
+        </div>
+        <p class="small-note">Per una nuova registrazione manuale inserisci sia l'inizio sia la fine. Le nanne in corso si gestiscono con i pulsanti automatici.</p>
+      </form>
+      <p id="stato-nanne" class="status-line" aria-live="polite"></p>
+      <h3>Storico delle nanne</h3>
+      <div id="elenco-nanne"></div>
+    </section>
     <section class="card"><h2>📅 Appuntamenti</h2><p>Organizzeremo gli impegni di famiglia.</p></section>
   </main>
 </div>
@@ -157,6 +199,7 @@ function mostraLogin(messaggio = '') {
   eventi = [];
   visite = [];
   listaNascita = [];
+  nanne = [];
   el('contenuto-diario').hidden = true;
   el('schermata-login').hidden = false;
   el('login-password').value = '';
@@ -545,6 +588,173 @@ el('annulla-articolo').addEventListener('click',resetArticolo);
 el('aggiorna-visite').addEventListener('click',caricaVisite);
 el('aggiorna-lista').addEventListener('click',caricaListaNascita);
 el('visita-data').value=dataOggiLocale();
+
+// Nanna: tutti gli orari sono conservati in UTC su Supabase e mostrati nell'ora locale.
+let nanne = [];
+let nannaInModifica = null;
+let nanneOccupate = false;
+
+function dataOraLocale(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const z = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`;
+}
+function dataOraLeggibile(iso) {
+  return iso ? new Date(iso).toLocaleString('it-IT', {dateStyle:'short',timeStyle:'short'}) : 'In corso';
+}
+function durataLeggibile(ms) {
+  const minuti = Math.max(0, Math.floor(ms / 60000));
+  const ore = Math.floor(minuti / 60);
+  return `${ore} ${ore === 1 ? 'ora' : 'ore'} e ${minuti % 60} minuti`;
+}
+function nannaAttiva() { return nanne.find(n => n.fine == null); }
+function resetNanna() {
+  el('form-nanna').reset();
+  nannaInModifica = null;
+  el('titolo-nanna-manuale').textContent = 'Inserisci una nanna manualmente';
+  el('salva-nanna').textContent = 'Salva nanna';
+  el('annulla-nanna').hidden = true;
+  el('nanna-fine').required = true;
+}
+function modificaNanna(n) {
+  nannaInModifica = n.id;
+  el('nanna-inizio').value = dataOraLocale(n.inizio);
+  el('nanna-fine').value = dataOraLocale(n.fine);
+  el('nanna-note').value = n.note || '';
+  el('nanna-fine').required = Boolean(n.fine);
+  el('titolo-nanna-manuale').textContent = 'Modifica orari della nanna';
+  el('salva-nanna').textContent = 'Salva modifiche';
+  el('annulla-nanna').hidden = false;
+  el('form-nanna').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function mostraNanne() {
+  const attiva = nannaAttiva();
+  el('stato-nanna-in-corso').textContent = attiva
+    ? '🌙 Nanna in corso dalle ' + dataOraLeggibile(attiva.inizio)
+    : 'Nessuna nanna in corso.';
+  el('inizia-nanna').disabled = nanneOccupate || Boolean(attiva);
+  el('finisci-nanna').disabled = nanneOccupate || !attiva;
+  const adesso = Date.now();
+  const limite = adesso - 24 * 60 * 60 * 1000;
+  const ms = nanne.reduce((tot,n) => {
+    const inizio = new Date(n.inizio).getTime();
+    const fine = n.fine ? new Date(n.fine).getTime() : adesso;
+    return tot + Math.max(0, Math.min(fine,adesso) - Math.max(inizio,limite));
+  },0);
+  el('totale-nanne').textContent = durataLeggibile(ms);
+  const elenco = el('elenco-nanne');
+  elenco.replaceChildren();
+  if (!nanne.length) { aggiungiTesto(elenco,'small-note','Nessuna nanna registrata.'); return; }
+  nanne.forEach(n => {
+    const riga = document.createElement('div'); riga.className='item';
+    aggiungiTesto(riga,'item-title', (n.fine ? '😴 ' : '🌙 ') + dataOraLeggibile(n.inizio));
+    aggiungiTesto(riga,'item-details', 'Fine: ' + dataOraLeggibile(n.fine) +
+      ' · Durata: ' + durataLeggibile((n.fine ? new Date(n.fine).getTime() : adesso) - new Date(n.inizio).getTime()) +
+      (n.note ? ' · ' + n.note : ''));
+    const azioni = document.createElement('div'); azioni.className='actions';
+    azioni.append(bottoneAzione('✏️ Modifica','secondary',()=>modificaNanna(n)),
+      bottoneAzione('🗑️ Elimina','danger',()=>eliminaNanna(n)));
+    riga.appendChild(azioni); elenco.appendChild(riga);
+  });
+}
+async function caricaNanne() {
+  if (!await controllaAccesso()) return;
+  el('stato-nanne').textContent = 'Caricamento nanne...';
+  // Include tutte le nanne, anche quelle che attraversano la mezzanotte.
+  const {data,error} = await db.from('nanne')
+    .select('id, inizio, fine, note').order('inizio',{ascending:false});
+  if (error) { el('stato-nanne').textContent = 'Errore: ' + error.message; return; }
+  nanne = data || [];
+  mostraNanne();
+  el('stato-nanne').textContent = 'Nanne aggiornate online.';
+}
+async function registraInizioNanna() {
+  if (nanneOccupate || !await controllaAccesso()) return;
+  nanneOccupate=true; mostraNanne();
+  try {
+    // L'indice UNIQUE su Supabase impedisce due nanne in corso contemporaneamente.
+    const {data,error} = await db.from('nanne')
+      .insert({inizio:new Date().toISOString()}).select('id');
+    if (error) throw error;
+    if (!data?.length) throw new Error('Inizio non registrato.');
+    await caricaNanne();
+  } catch(e) {alert('Impossibile iniziare la nanna: '+e.message);await caricaNanne();}
+  finally {nanneOccupate=false;mostraNanne();}
+}
+async function registraFineNanna() {
+  if (nanneOccupate || !await controllaAccesso()) return;
+  nanneOccupate=true; mostraNanne();
+  try {
+    // Rileggiamo prima l'ultima registrazione, anche se l'altro genitore l'ha già chiusa.
+    const {data,error} = await db.from('nanne').select('id, inizio')
+      .is('fine',null).limit(1);
+    if (error) throw error;
+    if (!data?.length) throw new Error('Non risulta alcuna nanna in corso. Aggiorna la lista.');
+    const fine = new Date();
+    if (fine.getTime() <= new Date(data[0].inizio).getTime()) throw new Error('Orario di fine non valido.');
+    const risultato = await db.from('nanne').update({fine:fine.toISOString()})
+      .eq('id',data[0].id).is('fine',null).select('id');
+    if (risultato.error) throw risultato.error;
+    if (!risultato.data?.length) throw new Error('Nanna già terminata da un altro dispositivo.');
+    await caricaNanne();
+  } catch(e) {alert('Impossibile terminare la nanna: '+e.message);await caricaNanne();}
+  finally {nanneOccupate=false;mostraNanne();}
+}
+async function salvaNanna(event) {
+  event.preventDefault();
+  if (nanneOccupate || !await controllaAccesso()) return;
+  const start = el('nanna-inizio').value;
+  const end = el('nanna-fine').value;
+  if (!start || (!nannaInModifica && !end)) {
+    alert('Inserisci inizio e fine della nanna.');return;
+  }
+  const inizio = new Date(start);
+  const fine = end ? new Date(end) : null;
+  if (!Number.isFinite(inizio.getTime()) || (fine && !Number.isFinite(fine.getTime()))) {
+    alert('Inserisci date e orari validi.');return;
+  }
+  if (inizio.getTime() > Date.now() || (fine && fine.getTime() > Date.now())) {
+    alert('Non puoi inserire una nanna nel futuro.');return;
+  }
+  if (fine && fine <= inizio) { alert('La fine deve essere successiva all’inizio.');return; }
+  if (!fine && nanne.some(n=>n.fine===null && n.id!==nannaInModifica)) {
+    alert('Esiste già una nanna in corso.');return;
+  }
+  const campi={inizio:inizio.toISOString(),fine:fine ? fine.toISOString() : null,
+    note:el('nanna-note').value.trim() || null};
+  nanneOccupate=true;el('salva-nanna').disabled=true;mostraNanne();
+  try {
+    const richiesta = nannaInModifica
+      ? db.from('nanne').update(campi).eq('id',nannaInModifica).select('id')
+      : db.from('nanne').insert(campi).select('id');
+    const {data,error}=await richiesta;
+    if(error) throw error;
+    if(!data?.length) throw new Error('Nanna non salvata. Controlla le autorizzazioni.');
+    resetNanna();await caricaNanne();
+  } catch(e) {alert('Salvataggio non riuscito: '+e.message);await caricaNanne();}
+  finally {nanneOccupate=false;el('salva-nanna').disabled=false;mostraNanne();}
+}
+async function eliminaNanna(n) {
+  if (nanneOccupate || !confirm('Eliminare questa registrazione della nanna?')) return;
+  if (!await controllaAccesso()) return;
+  nanneOccupate=true;mostraNanne();
+  try {
+    const {data,error}=await db.from('nanne').delete().eq('id',n.id).select('id');
+    if(error) throw error;
+    if(!data?.length) throw new Error('Nessuna nanna eliminata. Controlla i permessi.');
+    if(nannaInModifica===n.id)resetNanna();
+    await caricaNanne();
+  } catch(e) {alert('Eliminazione non riuscita: '+e.message);await caricaNanne();}
+  finally {nanneOccupate=false;mostraNanne();}
+}
+el('apri-nanne').addEventListener('click',()=>cambiaPannello('pannello-nanne','apri-nanne',caricaNanne));
+el('inizia-nanna').addEventListener('click',registraInizioNanna);
+el('finisci-nanna').addEventListener('click',registraFineNanna);
+el('aggiorna-nanne').addEventListener('click',caricaNanne);
+el('form-nanna').addEventListener('submit',salvaNanna);
+el('annulla-nanna').addEventListener('click',resetNanna);
+resetNanna();
 
 avviaApp();
 </script>
