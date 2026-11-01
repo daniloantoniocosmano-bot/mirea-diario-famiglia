@@ -53,6 +53,14 @@ textarea { width:100%; padding:12px; margin:8px 0; border:1px solid #e7c3d2; bor
 .appuntamento-prossimo strong { display:block; color:#9d3e67; margin-bottom:5px; }
 .appuntamento-prossimo p { margin:5px 0; }
 .appuntamento-sezione { margin-top:18px; }
+
+/* Medicine e terapie */
+.medicine-badge { background:#fff0f6; padding:12px; border-radius:12px; margin:10px 0; }
+.medicine-dose { border-bottom:1px solid #f2dce5; padding:13px 0; }
+.medicine-dose strong { display:block; overflow-wrap:anywhere; }
+.medicine-dose small { display:block; color:#806b75; margin:5px 0; }
+.medicine-toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.medicine-toolbar input { flex:1; min-width:160px; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -119,6 +127,43 @@ textarea { width:100%; padding:12px; margin:8px 0; border:1px solid #e7c3d2; bor
       <button type="button" id="pulsante-pannolino">+ Registra cambio</button>
     </section>
     <section class="card"><h2>📖 Storico degli eventi</h2><button type="button" id="pulsante-aggiorna">↻ Aggiorna</button><div id="storico"></div></section>
+    <section class="card">
+      <h2>💊 Medicine e terapie</h2>
+      <p>Programma le terapie prescritte e registra le somministrazioni al bisogno.</p>
+      <button type="button" id="apri-medicine" aria-expanded="false">Gestisci medicine</button>
+    </section>
+    <section class="card" id="pannello-medicine" hidden>
+      <h2>💊 Diario delle medicine</h2>
+      <p class="small-note">Registra solo le quantità indicate dal pediatra. Una spunta indica una somministrazione realmente avvenuta; non usare il diario per decidere dosi o recuperi.</p>
+      <div class="medicine-toolbar"><label for="medicine-giorno">Giorno da visualizzare</label><input id="medicine-giorno" type="date"><button id="aggiorna-medicine" type="button" class="secondary">↻ Aggiorna</button></div>
+      <div class="medicine-badge"><strong id="medicine-conteggio">0 somministrazioni su 0 previste</strong></div>
+      <h3>📅 Dosi programmate per il giorno selezionato</h3>
+      <div id="medicine-dosi"></div>
+      <h3>➕ Nuova terapia programmata</h3>
+      <form id="form-terapia">
+        <label class="field-label" for="terapia-nome">Nome del medicinale *</label><input id="terapia-nome" required maxlength="200" autocomplete="off">
+        <label class="field-label" for="terapia-quantita">Quantità per singola dose *</label><input id="terapia-quantita" type="number" min="0.001" step="any" required>
+        <label class="field-label" for="terapia-unita">Unità di misura *</label><select id="terapia-unita" required><option value="gocce">Gocce</option><option value="ml">ml</option><option value="mg">mg</option><option value="compresse">Compresse</option><option value="altro">Altro</option></select>
+        <label class="field-label" for="terapia-orari">Orari ogni giorno (HH:MM, separati da virgola) *</label><input id="terapia-orari" required placeholder="Es. 08:00, 20:00">
+        <label class="field-label" for="terapia-inizio">Inizio terapia *</label><input id="terapia-inizio" type="date" required>
+        <label class="field-label" for="terapia-fine">Fine terapia (facoltativa)</label><input id="terapia-fine" type="date">
+        <label class="field-label" for="terapia-indicazioni">Indicazioni del pediatra (facoltative)</label><textarea id="terapia-indicazioni" rows="2"></textarea>
+        <button type="submit" id="salva-terapia">Salva terapia</button><button type="button" id="annulla-terapia" class="secondary" hidden>Annulla modifica</button>
+      </form>
+      <h3>📋 Terapie registrate</h3><div id="medicine-terapie"></div>
+      <h3>💊 Medicinale al bisogno</h3>
+      <form id="form-medicina-bisogno">
+        <label class="field-label" for="bisogno-nome">Nome del medicinale *</label><input id="bisogno-nome" required maxlength="200">
+        <label class="field-label" for="bisogno-quantita">Quantità realmente somministrata *</label><input id="bisogno-quantita" type="number" min="0.001" step="any" required>
+        <label class="field-label" for="bisogno-unita">Unità di misura *</label><select id="bisogno-unita"><option value="gocce">Gocce</option><option value="ml">ml</option><option value="mg">mg</option><option value="compresse">Compresse</option><option value="altro">Altro</option></select>
+        <label class="field-label" for="bisogno-ora">Data e ora effettiva *</label><input id="bisogno-ora" type="datetime-local" required>
+        <label class="field-label" for="bisogno-motivo">Motivo / indicazione *</label><input id="bisogno-motivo" required maxlength="500" placeholder="Es. indicazione del pediatra">
+        <label class="field-label" for="bisogno-note">Note (facoltative)</label><textarea id="bisogno-note" rows="2"></textarea>
+        <button id="salva-bisogno" type="submit">Registra somministrazione</button>
+      </form>
+      <h3>📖 Somministrazioni registrate nel giorno selezionato</h3><div id="medicine-storico"></div>
+      <p id="stato-medicine" class="status-line" aria-live="polite"></p>
+    </section>
     <section class="card">
       <h2>🎁 Visite e regali</h2>
       <p>Registra chi ha conosciuto Mirea e chi le ha fatto un regalo anche senza visita.</p>
@@ -262,6 +307,8 @@ function mostraLogin(messaggio = '') {
   listaNascita = [];
   nanne = [];
   appuntamentiMirea = [];
+  terapieMirea = [];
+  somministrazioniMirea = [];
   el('nanne-oggi').textContent = '0';
   el('contenuto-diario').hidden = true;
   el('schermata-login').hidden = false;
@@ -1008,6 +1055,187 @@ el('apri-appuntamenti').addEventListener('click',()=>
 el('form-appuntamento').addEventListener('submit',salvaAppuntamento);
 el('annulla-modifica-appuntamento').addEventListener('click',resetAppuntamento);
 el('aggiorna-appuntamenti').addEventListener('click',caricaAppuntamenti);
+
+
+// Medicine: solo tracciamento delle prescrizioni e delle somministrazioni.
+let terapieMirea = [];
+let somministrazioniMirea = [];
+let terapiaInModifica = null;
+let medicineOccupate = false;
+const formatoOra = /^([01]\d|2[0-3]):[0-5]\d$/;
+function medicineDataCorrente() { return el('medicine-giorno').value || dataOggiLocale(); }
+function medicinaOraInGiorno(giorno, ora) { return new Date(giorno + 'T' + ora + ':00'); }
+function medicineQuantita(t) { return String(t.quantita).replace('.', ',') + ' ' + t.unita; }
+function impostaStatoMedicine(t) { el('stato-medicine').textContent=t; }
+function resetTerapia() {
+  el('form-terapia').reset(); terapiaInModifica = null;
+  el('terapia-inizio').value = dataOggiLocale();
+  el('salva-terapia').textContent = 'Salva terapia';
+  el('annulla-terapia').hidden = true;
+}
+function modificaTerapia(t) {
+  terapiaInModifica=t.id;
+  el('terapia-nome').value=t.nome;
+  el('terapia-quantita').value=t.quantita;
+  el('terapia-unita').value=t.unita;
+  el('terapia-orari').value=(t.orari||[]).join(', ');
+  el('terapia-inizio').value=t.data_inizio;
+  el('terapia-fine').value=t.data_fine||'';
+  el('terapia-indicazioni').value=t.indicazioni||'';
+  el('salva-terapia').textContent='Salva modifiche';
+  el('annulla-terapia').hidden=false;
+  el('form-terapia').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function medicineTrovareDose(t, giorno, ora) {
+  const previsto=medicinaOraInGiorno(giorno,ora).getTime();
+  return somministrazioniMirea.find(s=>s.terapia_id===t.id && s.orario_previsto && new Date(s.orario_previsto).getTime()===previsto);
+}
+function mostraMedicine() {
+  const giorno=medicineDataCorrente();
+  const dosi=el('medicine-dosi'); dosi.replaceChildren();
+  const lista=el('medicine-terapie'); lista.replaceChildren();
+  const storico=el('medicine-storico'); storico.replaceChildren();
+  let previste=0, effettuate=0;
+  const programmate=[];
+  for (const t of terapieMirea) {
+    if (!t.attiva || giorno<t.data_inizio || (t.data_fine && giorno>t.data_fine)) continue;
+    for (const ora of t.orari||[]) programmate.push({t,ora});
+  }
+  programmate.sort((a,b)=>a.ora.localeCompare(b.ora));
+  for (const {t,ora} of programmate) {
+    previste++;
+    const registrata=medicineTrovareDose(t,giorno,ora);
+    if(registrata?.stato==='somministrata') effettuate++;
+    const riga=document.createElement('div');riga.className='medicine-dose';
+    aggiungiTesto(riga,'item-title',ora+' · '+t.nome+' — '+medicineQuantita(t));
+    const statoDose=registrata?.stato==='somministrata'?'✅ Somministrata alle '+new Date(registrata.orario_effettivo).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})
+      :registrata?.stato==='non_somministrata'?'❌ Non somministrata':'○ Da somministrare';
+    aggiungiTesto(riga,'item-details',statoDose+(t.indicazioni?' · '+t.indicazioni:''));
+    const azioni=document.createElement('div');azioni.className='actions';
+    if(registrata?.stato!=='somministrata') azioni.appendChild(bottoneAzione('✓ Somministrata','secondary',()=>registraDose(t,giorno,ora,'somministrata')));
+    if(registrata?.stato!=='non_somministrata') azioni.appendChild(bottoneAzione('Non somministrata','secondary',()=>registraDose(t,giorno,ora,'non_somministrata')));
+    if(registrata) azioni.appendChild(bottoneAzione('↩ Ripristina in attesa','secondary',()=>ripristinaDose(registrata)));
+    riga.appendChild(azioni);dosi.appendChild(riga);
+  }
+  if(!previste) aggiungiTesto(dosi,'small-note','Nessuna dose programmata per questo giorno.');
+  el('medicine-conteggio').textContent=`${effettuate} somministrazioni su ${previste} previste`;
+  for (const t of terapieMirea) {
+    const riga=document.createElement('div');riga.className='item';
+    aggiungiTesto(riga,'item-title',t.nome+' · '+medicineQuantita(t));
+    aggiungiTesto(riga,'item-details',`Orari: ${(t.orari||[]).join(', ')} · Dal ${t.data_inizio}${t.data_fine?' al '+t.data_fine:''} · ${t.attiva?'Attiva':'Sospesa'}`+(t.indicazioni?' · '+t.indicazioni:''));
+    const azioni=document.createElement('div');azioni.className='actions';
+    azioni.append(bottoneAzione('✏️ Modifica','secondary',()=>modificaTerapia(t)),bottoneAzione(t.attiva?'⏸ Sospendi':'▶ Riattiva','secondary',()=>cambiaTerapiaAttiva(t)));
+    riga.appendChild(azioni);lista.appendChild(riga);
+  }
+  if(!terapieMirea.length) aggiungiTesto(lista,'small-note','Nessuna terapia inserita.');
+  const inizio=new Date(giorno+'T00:00:00').getTime(), fine=new Date(giorno+'T00:00:00');fine.setDate(fine.getDate()+1);
+  const giornaliere=somministrazioniMirea.filter(s=>{
+    const data=s.orario_previsto||s.orario_effettivo||s.creato_il;
+    const n=new Date(data).getTime();return n>=inizio&&n<fine.getTime();
+  }).sort((a,b)=>new Date(b.orario_effettivo||b.orario_previsto||b.creato_il)-new Date(a.orario_effettivo||a.orario_previsto||a.creato_il));
+  for (const s of giornaliere) {
+    const riga=document.createElement('div');riga.className='item';
+    aggiungiTesto(riga,'item-title',s.nome+' · '+medicineQuantita(s));
+    const dettagli=[s.terapia_id?'Dose programmata':'Al bisogno',s.stato==='somministrata'?'Somministrata':'Non somministrata',
+      s.orario_effettivo?'Data effettiva: '+dataOraLeggibile(s.orario_effettivo):'',s.motivo?'Motivo: '+s.motivo:'',s.note||''].filter(Boolean).join(' · ');
+    aggiungiTesto(riga,'item-details',dettagli);
+    const azioni=document.createElement('div');azioni.className='actions';
+    azioni.appendChild(bottoneAzione('🗑 Elimina registrazione','danger',()=>eliminaSomministrazione(s)));
+    riga.appendChild(azioni);storico.appendChild(riga);
+  }
+  if(!giornaliere.length) aggiungiTesto(storico,'small-note','Nessuna somministrazione registrata per questo giorno.');
+}
+async function caricaMedicine() {
+  if(!await controllaAccesso()) return;
+  impostaStatoMedicine('Caricamento medicine...');
+  const [t,s]=await Promise.all([
+    db.from('terapie_mirea').select('id,nome,quantita,unita,orari,data_inizio,data_fine,indicazioni,attiva').order('creato_il',{ascending:false}),
+    db.from('somministrazioni_mirea').select('id,terapia_id,nome,quantita,unita,orario_previsto,orario_effettivo,stato,motivo,note,creato_il').order('creato_il',{ascending:false})
+  ]);
+  if(t.error||s.error) {impostaStatoMedicine('Errore: '+(t.error||s.error).message);return;}
+  terapieMirea=t.data||[];somministrazioniMirea=s.data||[];
+  mostraMedicine();impostaStatoMedicine('Dati aggiornati online.');
+}
+async function salvaTerapia(event) {
+  event.preventDefault();if(medicineOccupate||!await controllaAccesso())return;
+  const orari=el('terapia-orari').value.split(',').map(x=>x.trim());
+  if(!orari.length||orari.some(x=>!formatoOra.test(x))||new Set(orari).size!==orari.length){alert('Inserisci orari validi e non duplicati, separati da virgola (es. 08:00, 20:00).');return;}
+  const quantita=Number(el('terapia-quantita').value);
+  if(!Number.isFinite(quantita)||quantita<=0){alert('Quantità non valida.');return;}
+  const inizio=el('terapia-inizio').value, fine=el('terapia-fine').value||null;
+  if(fine&&fine<inizio){alert('La fine deve essere successiva o uguale all’inizio.');return;}
+  const campi={nome:el('terapia-nome').value.trim(),quantita,unita:el('terapia-unita').value,orari:orari.sort(),data_inizio:inizio,data_fine:fine,indicazioni:el('terapia-indicazioni').value.trim()||null};
+  if(!campi.nome)return;
+  if(terapiaInModifica&&somministrazioniMirea.some(s=>s.terapia_id===terapiaInModifica)){
+    if(!confirm('Questa terapia ha già delle somministrazioni registrate. Modificare dosi e orari può rendere lo storico non corrispondente. Continuare?'))return;
+  }
+  medicineOccupate=true;el('salva-terapia').disabled=true;
+  try {
+    const richiesta=terapiaInModifica?db.from('terapie_mirea').update(campi).eq('id',terapiaInModifica).select('id'):db.from('terapie_mirea').insert(campi).select('id');
+    const {data,error}=await richiesta;if(error)throw error;if(!data?.length)throw Error('La terapia non è stata salvata.');
+    resetTerapia();await caricaMedicine();
+  }catch(e){alert('Errore nel salvataggio: '+e.message);}finally{medicineOccupate=false;el('salva-terapia').disabled=false;}
+}
+async function cambiaTerapiaAttiva(t) {
+  if(medicineOccupate||!await controllaAccesso())return;
+  if(!confirm((t.attiva?'Sospendere':'Riattivare')+' la terapia «'+t.nome+'»?'))return;
+  medicineOccupate=true;
+  try{const {data,error}=await db.from('terapie_mirea').update({attiva:!t.attiva}).eq('id',t.id).select('id');if(error)throw error;if(!data?.length)throw Error('Nessuna terapia aggiornata.');await caricaMedicine();}
+  catch(e){alert('Errore: '+e.message);}finally{medicineOccupate=false;}
+}
+async function registraDose(t,giorno,ora,statoNuovo) {
+  if(medicineOccupate||!await controllaAccesso())return;
+  const istante=medicinaOraInGiorno(giorno,ora);
+  if(!Number.isFinite(istante.getTime()))return;
+  if(statoNuovo==='somministrata'&&!confirm('Confermi di aver REALMENTE somministrato «'+t.nome+'» nella quantità '+medicineQuantita(t)+'?'))return;
+  if(statoNuovo==='non_somministrata'&&!confirm('Segnare questa dose come non somministrata?'))return;
+  medicineOccupate=true;
+  try{
+    // Rileggere prima di aggiornare riduce i conflitti tra due dispositivi.
+    const {data:esistenti,error:letturaErrore}=await db.from('somministrazioni_mirea').select('id').eq('terapia_id',t.id).eq('orario_previsto',istante.toISOString()).limit(1);
+    if(letturaErrore)throw letturaErrore;
+    const campi={nome:t.nome,quantita:t.quantita,unita:t.unita,stato:statoNuovo,orario_effettivo:statoNuovo==='somministrata'?new Date().toISOString():null};
+    const risultato=esistenti?.length?await db.from('somministrazioni_mirea').update(campi).eq('id',esistenti[0].id).select('id'):
+      await db.from('somministrazioni_mirea').insert({...campi,terapia_id:t.id,orario_previsto:istante.toISOString()}).select('id');
+    if(risultato.error)throw risultato.error;if(!risultato.data?.length)throw Error('Dose non salvata.');
+    await caricaMedicine();
+  }catch(e){alert('Impossibile salvare la dose: '+e.message);}finally{medicineOccupate=false;}
+}
+async function ripristinaDose(s) {
+  if(medicineOccupate||!confirm('Ripristinare questa dose a “Da somministrare”?')||!await controllaAccesso())return;
+  medicineOccupate=true;
+  try{const {data,error}=await db.from('somministrazioni_mirea').delete().eq('id',s.id).select('id');if(error)throw error;if(!data?.length)throw Error('Dose non aggiornata.');await caricaMedicine();}
+  catch(e){alert('Errore: '+e.message);}finally{medicineOccupate=false;}
+}
+async function salvaBisogno(event) {
+  event.preventDefault();if(medicineOccupate||!await controllaAccesso())return;
+  const quando=new Date(el('bisogno-ora').value),quantita=Number(el('bisogno-quantita').value);
+  if(!Number.isFinite(quando.getTime())||quando.getTime()>Date.now()||!Number.isFinite(quantita)||quantita<=0){alert('Controlla data, ora e quantità: non possono essere future o non valide.');return;}
+  const nome=el('bisogno-nome').value.trim(),motivo=el('bisogno-motivo').value.trim();
+  if(!nome||!motivo)return;
+  if(!confirm('Confermi che questa somministrazione è già avvenuta?'))return;
+  medicineOccupate=true;el('salva-bisogno').disabled=true;
+  try{
+    const {data,error}=await db.from('somministrazioni_mirea').insert({terapia_id:null,nome,quantita,unita:el('bisogno-unita').value,orario_previsto:null,orario_effettivo:quando.toISOString(),stato:'somministrata',motivo,note:el('bisogno-note').value.trim()||null}).select('id');
+    if(error)throw error;if(!data?.length)throw Error('Somministrazione non registrata.');
+    el('form-medicina-bisogno').reset();await caricaMedicine();
+  }catch(e){alert('Impossibile registrare: '+e.message);}finally{medicineOccupate=false;el('salva-bisogno').disabled=false;}
+}
+async function eliminaSomministrazione(s) {
+  if(medicineOccupate||!confirm('Eliminare questa registrazione? Non cancella la terapia programmata.')||!await controllaAccesso())return;
+  medicineOccupate=true;
+  try{const {data,error}=await db.from('somministrazioni_mirea').delete().eq('id',s.id).select('id');if(error)throw error;if(!data?.length)throw Error('Nessun dato eliminato.');await caricaMedicine();}
+  catch(e){alert('Errore: '+e.message);}finally{medicineOccupate=false;}
+}
+el('medicine-giorno').value=dataOggiLocale();
+el('terapia-inizio').value=dataOggiLocale();
+el('bisogno-ora').value=dataOraLocale(new Date().toISOString());
+el('apri-medicine').addEventListener('click',()=>cambiaPannello('pannello-medicine','apri-medicine',caricaMedicine));
+el('aggiorna-medicine').addEventListener('click',caricaMedicine);
+el('medicine-giorno').addEventListener('change',mostraMedicine);
+el('form-terapia').addEventListener('submit',salvaTerapia);
+el('annulla-terapia').addEventListener('click',resetTerapia);
+el('form-medicina-bisogno').addEventListener('submit',salvaBisogno);
 
 avviaApp();
 </script>
