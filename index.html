@@ -80,6 +80,17 @@ input, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #e7
 </section>
 
 
+<div id="pannello-lista-nascita" class="card" hidden>
+  <h2>🎁 Gestisci lista nascita</h2>
+<input type="text" id="lista-articolo" placeholder="Nome dell'articolo (es. passeggino)">
+<input type="number" id="lista-prezzo" placeholder="Prezzo indicativo (€)" min="0" step="0.01">
+<label><input type="checkbox" id="lista-ricevuto"> Regalo già ricevuto</label>
+<input type="text" id="lista-regalato-da" placeholder="Regalato da (facoltativo)">
+<button type="button" id="salva-articolo">Salva articolo</button>
+<div id="elenco-lista-nascita"></div>
+</div>
+
+
     <section class="card"><h2>📅 Appuntamenti</h2><p>Organizzeremo gli impegni di famiglia.</p></section>
   </main>
 </div>
@@ -319,6 +330,39 @@ pulsante.addEventListener('click', async () => {
     elenco.appendChild(riga);
   });
 }
+
+
+document.getElementById('apri-lista-nascita').addEventListener('click', () => {
+  const pannello = document.getElementById('pannello-lista-nascita');
+  pannello.hidden = !pannello.hidden;
+});
+
+document.getElementById('salva-articolo').addEventListener('click', async () => {
+  const articolo = document.getElementById('lista-articolo').value.trim();
+  const prezzo = document.getElementById('lista-prezzo').value;
+  const ricevuto = document.getElementById('lista-ricevuto').checked;
+  const regalatoDa = document.getElementById('lista-regalato-da').value.trim();
+
+  if (!articolo) {
+    alert('Inserisci il nome dell’articolo.');
+    return;
+  }
+  
+const { error } = await db.from('lista_nascita').insert({
+  articolo: articolo,
+  prezzo: prezzo === '' ? null : Number(prezzo),
+  ricevuto: ricevuto,
+  regalato_da: regalatoDa
+});
+
+if (error) {
+  alert('Errore nel salvataggio: ' + error.message);
+  return;
+}
+
+alert('Articolo salvato correttamente!');
+
+});
 
 avviaApp();
 </script>
