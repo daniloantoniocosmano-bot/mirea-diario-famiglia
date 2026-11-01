@@ -334,6 +334,9 @@ pulsante.addEventListener('click', async () => {
 document.getElementById('apri-lista-nascita').addEventListener('click', () => {
   const pannello = document.getElementById('pannello-lista-nascita');
   pannello.hidden = !pannello.hidden;
+  
+if (!pannello.hidden) caricaListaNascita();
+
 });
 
 document.getElementById('salva-articolo').addEventListener('click', async () => {
@@ -361,7 +364,39 @@ if (error) {
 
 alert('Articolo salvato correttamente!');
 
+await caricaListaNascita();
+
 });
+
+async function caricaListaNascita() {
+  const elenco = document.getElementById('elenco-lista-nascita');
+  elenco.textContent = 'Caricamento articoli...';
+
+  const { data, error } = await db
+    .from('lista_nascita')
+    .select('id, articolo, prezzo, ricevuto, regalato_da')
+    .order('creato_il', { ascending: false });
+
+  if (error) {
+    elenco.textContent = 'Errore: ' + error.message;
+    return;
+  }
+
+  elenco.replaceChildren();
+
+  if (!data.length) {
+    elenco.textContent = 'Nessun articolo registrato.';
+    return;
+  }
+
+  data.forEach(item => {
+    const riga = document.createElement('p');
+    riga.textContent = (item.ricevuto ? '✅ ' : '🎁 ') + item.articolo +
+      (item.prezzo != null ? ' — € ' + item.prezzo : '') +
+      (item.regalato_da ? ' — Da: ' + item.regalato_da : '');
+    elenco.appendChild(riga);
+  });
+}
 
 avviaApp();
 </script>
