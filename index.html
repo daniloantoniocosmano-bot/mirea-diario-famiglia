@@ -47,6 +47,12 @@ textarea { width:100%; padding:12px; margin:8px 0; border:1px solid #e7c3d2; bor
 .nanna-orari input { min-width:0; }
 @media(max-width:390px) { .nanna-orari { grid-template-columns:1fr; } }
 
+
+/* Appuntamenti di Mirea */
+.appuntamento-prossimo { background:#fff0f6; border-radius:12px; padding:14px; margin:12px 0; }
+.appuntamento-prossimo strong { display:block; color:#9d3e67; margin-bottom:5px; }
+.appuntamento-prossimo p { margin:5px 0; }
+.appuntamento-sezione { margin-top:18px; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -177,7 +183,62 @@ textarea { width:100%; padding:12px; margin:8px 0; border:1px solid #e7c3d2; bor
       <div id="elenco-lista-nascita"></div>
       <button id="aggiorna-lista" type="button" class="secondary">↻ Aggiorna lista</button>
     </section>
-    <section class="card"><h2>📅 Appuntamenti</h2><p>Organizzeremo gli impegni di famiglia.</p></section>
+    <section class="card">
+      <h2>📅 Appuntamenti di Mirea</h2>
+      <p>Visite pediatriche, vaccinazioni, esami e altri impegni, condivisi tra mamma e papà.</p>
+      <button type="button" id="apri-appuntamenti" aria-expanded="false">Gestisci appuntamenti</button>
+    </section>
+    <section class="card" id="pannello-appuntamenti" hidden>
+      <h2 id="titolo-appuntamento">Nuovo appuntamento</h2>
+      <div class="appuntamento-prossimo">
+        <strong>📌 Prossimo appuntamento</strong>
+        <div id="prossimo-appuntamento">Caricamento...</div>
+      </div>
+      <form id="form-appuntamento">
+        <label class="field-label" for="app-tipo">Tipo di appuntamento *</label>
+        <select id="app-tipo" required>
+          <option value="Pediatra">Pediatra</option>
+          <option value="Vaccinazione">Vaccinazione</option>
+          <option value="Visita specialistica">Visita specialistica</option>
+          <option value="Esame">Esame</option>
+          <option value="Altro">Altro</option>
+        </select>
+        <label class="field-label" for="app-titolo">Titolo *</label>
+        <input id="app-titolo" required maxlength="200" placeholder="Es. Prima visita pediatrica">
+        <label class="field-label" for="app-data-ora">Data e ora *</label>
+        <input id="app-data-ora" type="datetime-local" required>
+        <label class="field-label" for="app-luogo">Luogo (facoltativo)</label>
+        <input id="app-luogo" placeholder="Es. Ambulatorio o ospedale">
+        <label class="field-label" for="app-referente">Medico o referente (facoltativo)</label>
+        <input id="app-referente" placeholder="Nome del medico o referente">
+        <label class="field-label" for="app-stato">Stato</label>
+        <select id="app-stato">
+          <option value="programmato">Programmato</option>
+          <option value="effettuato">Effettuato</option>
+          <option value="annullato">Annullato</option>
+        </select>
+        <label class="field-label" for="app-note">Note (facoltative)</label>
+        <textarea id="app-note" rows="3" placeholder="Es. Documenti da portare"></textarea>
+        <div class="actions">
+          <button type="submit" id="salva-appuntamento">Salva appuntamento</button>
+          <button type="button" class="secondary" id="annulla-modifica-appuntamento" hidden>Annulla modifica</button>
+        </div>
+      </form>
+      <p id="stato-appuntamenti" class="status-line" aria-live="polite"></p>
+      <div class="appuntamento-sezione">
+        <h3>📌 Appuntamenti programmati</h3>
+        <div id="appuntamenti-programmati"></div>
+      </div>
+      <div class="appuntamento-sezione">
+        <h3>✅ Effettuati</h3>
+        <div id="appuntamenti-effettuati"></div>
+      </div>
+      <div class="appuntamento-sezione">
+        <h3>❌ Annullati</h3>
+        <div id="appuntamenti-annullati"></div>
+      </div>
+      <button type="button" class="secondary" id="aggiorna-appuntamenti">↻ Aggiorna appuntamenti</button>
+    </section>
   </main>
 </div>
 <script>
@@ -200,6 +261,7 @@ function mostraLogin(messaggio = '') {
   visite = [];
   listaNascita = [];
   nanne = [];
+  appuntamentiMirea = [];
   el('nanne-oggi').textContent = '0';
   el('contenuto-diario').hidden = true;
   el('schermata-login').hidden = false;
@@ -239,6 +301,7 @@ async function accedi(event) {
     mostraDiario();
     await caricaEventi();
     await caricaNanne();
+    await caricaAppuntamenti();
   } catch (err) {
     mostraLogin('Errore di connessione. Riprova.');
   } finally { bottone.disabled = false; }
@@ -332,6 +395,7 @@ async function avviaApp() {
     mostraDiario();
     await caricaEventi();
     await caricaNanne();
+    await caricaAppuntamenti();
   } catch { mostraLogin('Impossibile verificare la sessione.'); }
 }
 el('login-form').addEventListener('submit', accedi);
@@ -763,6 +827,187 @@ el('aggiorna-nanne').addEventListener('click',caricaNanne);
 el('form-nanna').addEventListener('submit',salvaNanna);
 el('annulla-nanna').addEventListener('click',resetNanna);
 resetNanna();
+
+
+// Appuntamenti: tabella public.appuntamenti_mirea (protetta da RLS).
+let appuntamentiMirea = [];
+let appuntamentoInModifica = null;
+let appuntamentiOccupati = false;
+
+function resetAppuntamento() {
+  el('form-appuntamento').reset();
+  appuntamentoInModifica = null;
+  el('titolo-appuntamento').textContent = 'Nuovo appuntamento';
+  el('salva-appuntamento').textContent = 'Salva appuntamento';
+  el('annulla-modifica-appuntamento').hidden = true;
+}
+
+function modificaAppuntamento(a) {
+  appuntamentoInModifica = a.id;
+  el('app-tipo').value = a.tipo;
+  el('app-titolo').value = a.titolo || '';
+  el('app-data-ora').value = dataOraLocale(a.data_ora);
+  el('app-luogo').value = a.luogo || '';
+  el('app-referente').value = a.referente || '';
+  el('app-stato').value = a.stato;
+  el('app-note').value = a.note || '';
+  el('titolo-appuntamento').textContent = 'Modifica appuntamento';
+  el('salva-appuntamento').textContent = 'Salva modifiche';
+  el('annulla-modifica-appuntamento').hidden = false;
+  el('form-appuntamento').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function testoAppuntamento(a) {
+  return [dataOraLeggibile(a.data_ora), a.tipo,
+    a.luogo ? 'Luogo: ' + a.luogo : '',
+    a.referente ? 'Referente: ' + a.referente : '',
+    a.note || ''].filter(Boolean).join(' · ');
+}
+
+function mostraAppuntamenti() {
+  const adesso = Date.now();
+  const programmati = appuntamentiMirea.filter(a => a.stato === 'programmato')
+    .sort((a,b) => new Date(a.data_ora) - new Date(b.data_ora));
+  const prossimo = programmati.find(a => new Date(a.data_ora).getTime() >= adesso);
+  const prossimoContenitore = el('prossimo-appuntamento');
+  prossimoContenitore.replaceChildren();
+  if (prossimo) {
+    aggiungiTesto(prossimoContenitore,'item-title',prossimo.titolo);
+    aggiungiTesto(prossimoContenitore,'item-details',testoAppuntamento(prossimo));
+  } else {
+    prossimoContenitore.textContent = 'Nessun appuntamento futuro programmato.';
+  }
+
+  const sezioni = [
+    ['programmato','appuntamenti-programmati','Nessun appuntamento programmato.'],
+    ['effettuato','appuntamenti-effettuati','Nessun appuntamento effettuato.'],
+    ['annullato','appuntamenti-annullati','Nessun appuntamento annullato.']
+  ];
+  for (const [statoCorrente,id,messaggio] of sezioni) {
+    const contenitore = el(id);
+    contenitore.replaceChildren();
+    const elementi = appuntamentiMirea.filter(a => a.stato === statoCorrente)
+      .sort((a,b) => statoCorrente === 'programmato'
+        ? new Date(a.data_ora) - new Date(b.data_ora)
+        : new Date(b.data_ora) - new Date(a.data_ora));
+    if (!elementi.length) {
+      aggiungiTesto(contenitore,'small-note',messaggio);
+      continue;
+    }
+    elementi.forEach(a => {
+      const riga = document.createElement('div');
+      riga.className = 'item';
+      aggiungiTesto(riga,'item-title',a.titolo);
+      aggiungiTesto(riga,'item-details',testoAppuntamento(a));
+      const azioni = document.createElement('div');
+      azioni.className = 'actions';
+      azioni.appendChild(bottoneAzione('✏️ Modifica','secondary',()=>modificaAppuntamento(a)));
+      if (a.stato === 'programmato') {
+        azioni.appendChild(bottoneAzione('✅ Effettuato','secondary',()=>cambiaStatoAppuntamento(a,'effettuato')));
+        azioni.appendChild(bottoneAzione('❌ Annullato','secondary',()=>cambiaStatoAppuntamento(a,'annullato')));
+      } else {
+        azioni.appendChild(bottoneAzione('↩️ Riprogramma','secondary',()=>cambiaStatoAppuntamento(a,'programmato')));
+      }
+      azioni.appendChild(bottoneAzione('🗑️ Elimina','danger',()=>eliminaAppuntamento(a)));
+      riga.appendChild(azioni);
+      contenitore.appendChild(riga);
+    });
+  }
+}
+
+async function caricaAppuntamenti() {
+  if (!await controllaAccesso()) return;
+  el('stato-appuntamenti').textContent = 'Caricamento appuntamenti...';
+  const {data,error} = await db.from('appuntamenti_mirea')
+    .select('id, tipo, titolo, data_ora, luogo, referente, note, stato')
+    .order('data_ora',{ascending:true});
+  if (error) {
+    el('stato-appuntamenti').textContent = 'Errore nel caricamento: ' + error.message;
+    return;
+  }
+  appuntamentiMirea = data || [];
+  mostraAppuntamenti();
+  el('stato-appuntamenti').textContent = 'Appuntamenti aggiornati online.';
+}
+
+async function salvaAppuntamento(event) {
+  event.preventDefault();
+  if (appuntamentiOccupati || !await controllaAccesso()) return;
+  const titolo = el('app-titolo').value.trim();
+  const oraLocale = el('app-data-ora').value;
+  const data = new Date(oraLocale);
+  if (!titolo || !oraLocale || !Number.isFinite(data.getTime())) {
+    alert('Inserisci un titolo e una data e ora validi.');
+    return;
+  }
+  const campi = {
+    tipo:el('app-tipo').value,
+    titolo,
+    data_ora:data.toISOString(),
+    luogo:el('app-luogo').value.trim() || null,
+    referente:el('app-referente').value.trim() || null,
+    note:el('app-note').value.trim() || null,
+    stato:el('app-stato').value
+  };
+  appuntamentiOccupati = true;
+  el('salva-appuntamento').disabled = true;
+  try {
+    const richiesta = appuntamentoInModifica
+      ? db.from('appuntamenti_mirea').update(campi).eq('id',appuntamentoInModifica).select('id')
+      : db.from('appuntamenti_mirea').insert(campi).select('id');
+    const {data:risultato,error} = await richiesta;
+    if (error) throw error;
+    if (!risultato?.length) throw new Error('Nessuna registrazione salvata. Controlla i permessi Supabase.');
+    resetAppuntamento();
+    await caricaAppuntamenti();
+  } catch (err) {
+    alert('Impossibile salvare l’appuntamento: ' + err.message);
+  } finally {
+    appuntamentiOccupati = false;
+    el('salva-appuntamento').disabled = false;
+  }
+}
+
+async function cambiaStatoAppuntamento(a,nuovoStato) {
+  if (appuntamentiOccupati || !await controllaAccesso()) return;
+  appuntamentiOccupati = true;
+  try {
+    const {data,error} = await db.from('appuntamenti_mirea')
+      .update({stato:nuovoStato}).eq('id',a.id).select('id');
+    if (error) throw error;
+    if (!data?.length) throw new Error('Stato non aggiornato. Controlla i permessi Supabase.');
+    if (appuntamentoInModifica === a.id) resetAppuntamento();
+    await caricaAppuntamenti();
+  } catch (err) {
+    alert('Impossibile aggiornare lo stato: ' + err.message);
+  } finally {
+    appuntamentiOccupati = false;
+  }
+}
+
+async function eliminaAppuntamento(a) {
+  if (appuntamentiOccupati || !confirm('Eliminare l’appuntamento «' + a.titolo + '»?')) return;
+  if (!await controllaAccesso()) return;
+  appuntamentiOccupati = true;
+  try {
+    const {data,error} = await db.from('appuntamenti_mirea')
+      .delete().eq('id',a.id).select('id');
+    if (error) throw error;
+    if (!data?.length) throw new Error('Appuntamento non eliminato. Controlla i permessi Supabase.');
+    if (appuntamentoInModifica === a.id) resetAppuntamento();
+    await caricaAppuntamenti();
+  } catch (err) {
+    alert('Impossibile eliminare l’appuntamento: ' + err.message);
+  } finally {
+    appuntamentiOccupati = false;
+  }
+}
+
+el('apri-appuntamenti').addEventListener('click',()=>
+  cambiaPannello('pannello-appuntamenti','apri-appuntamenti',caricaAppuntamenti));
+el('form-appuntamento').addEventListener('submit',salvaAppuntamento);
+el('annulla-modifica-appuntamento').addEventListener('click',resetAppuntamento);
+el('aggiorna-appuntamenti').addEventListener('click',caricaAppuntamenti);
 
 avviaApp();
 </script>
